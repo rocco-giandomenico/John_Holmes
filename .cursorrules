@@ -1,0 +1,23 @@
+# John_Holmes Project Directives
+
+## Persistent Sessions
+- **Do NOT close the browser** if a successful login has been performed on Fastweb, unless explicitly requested with a `force` flag or during production cleanup.
+- During development and testing iterations, prioritize maintaining the open browser context to avoid the overhead of re-logging in.
+- Check the `session_state.json` file or the internal `isLoggedIn` property before calling `browser.close()`.
+
+## API Design
+- Keep endpoints simple and modular.
+- Use `src/browserManager.js` as the singleton for all browser interactions.
+
+## Documentation
+- **Update documentation for EVERY modification**: Ensure that `README.md`, `walkthrough.md`, and any relevant artifacts are updated whenever a change is made to the codebase or project structure.
+- Maintain a clear and chronological record of changes in the `walkthrough.md`.
+
+## Project Hygiene
+- **Continuous Cleanup**: After every modification, audit the project and remove any useless or redundant files, code, or dependencies.
+- Keep the project structure lean and focused on the core functionality.
+
+## Knowledge Base
+- **Use README.md as the primary Knowledge Base**: Always refer to and update the `README.md` as the source of truth for the project's architecture, API, and technical decisions.
+- Ensure the `README.md` is kept up-to-date with any changes in logic or configuration.
+

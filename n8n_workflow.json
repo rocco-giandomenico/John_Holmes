@@ -1,0 +1,105 @@
+{
+    "name": "John_Holmes Automation",
+    "nodes": [
+        {
+            "parameters": {},
+            "name": "Start",
+            "type": "n8n-nodes-base.start",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://localhost:3000/login",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "username",
+                            "value": "YOUR_USERNAME"
+                        },
+                        {
+                            "name": "password",
+                            "value": "YOUR_PASSWORD"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Login to Fastweb",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 2,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://localhost:3000/api/session-status",
+                "options": {}
+            },
+            "name": "Check Session",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 2,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://localhost:3000/pda-init",
+                "options": {}
+            },
+            "name": "Init PDA",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 2,
+            "position": [
+                850,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Start": {
+            "main": [
+                [
+                    {
+                        "node": "Login to Fastweb",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Login to Fastweb": {
+            "main": [
+                [
+                    {
+                        "node": "Check Session",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Session": {
+            "main": [
+                [
+                    {
+                        "node": "Init PDA",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
