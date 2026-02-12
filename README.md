@@ -1,299 +1,255 @@
-# Playwright Express Server API (Project Knowledge Base)
+# John Holmes - Fastweb Automation Project
 
-Questo file funge da **Knowledge Base (KB) primaria** e fonte di verità per tutto il progetto John_Holmes. Ogni decisione tecnica, modifica all'API o cambio di configurazione deve essere documentato qui.
+Questo progetto è un sistema di automazione avanzato basato su **Playwright** e **Node.js** per interagire con il portale Fastweb/Salesforce. Funge da server API che espone funzionalità di navigazione, login e compilazione automatica di pratiche (PDA).
 
+## 📚 Indice
+1. [Requisiti e Installazione](#requisiti)
+2. [Avvio del Server](#avvio-del-server)
+3. [Architettura](#architettura)
+4. [Tool di Automazione (Core)](#tool-di-automazione)
+5. [Procedure](#procedure)
+6. [Mappatura Locatori](#mappatura-locatori)
+7. [API Reference](#api-reference)
+
+---
 
 ## Requisiti
 
-- Node.js installato
-- Dipendenze installate: `npm install`
+- Node.js (v14+)
+- NPM
+- Dipendenze: `npm install`
 
 ## Avvio del Server
 
-Per avviare il server sulla porta 3000:
+Per avviare il server API sulla porta **3000**:
 
 ```bash
+# Avvio standard
 npm start
-```
 
-Per lo sviluppo (con auto-reload):
-
-```bash
+# Avvio in modalità sviluppo (auto-reload)
 npm run dev
 ```
 
-## Endpoint API
+---
+
+## Architettura
+
+Il progetto è strutturato in moduli:
+- **`src/server.js`**: Entry point Express.js.
+- **`src/utils/browserManager.js`**: Singleton che gestisce l'istanza del browser Chromium.
+- **`src/tools/`**: Libreria di funzioni atomiche per interagire con la pagina (click, fill, wait).
+- **`src/procedures/`**: Script complessi che orchestrano più tool per completare task (es. Login, Init PDA).
+- **`stuff/pda_data.json`**: Mapping JSON dei selettori e dei dati.
+
+### Schema di Flusso
+```mermaid
+graph TD
+    %% Attori Esterni
+    Client["Client (Postman/Script)"]
+    Fastweb["Portale Fastweb/Salesforce"]
+
+    %% Livello Server
+    subgraph "API Layer (Express)"
+        Server["server.js"]
+    end
+
+    %% Livello Logica Core
+    subgraph "Core Agent (Singleton)"
+        BM["BrowserManager.js"]
+        Jobs["Jobs Repository (RAM)"]
+    end
+
+    %% Livello Operativo
+    subgraph "Procedures (Workflow)"
+        PDA["insertPDA.js (Sequential)"]
+        Login["login.js"]
+        Init["initPDA.js"]
+    end
+
+    %% Livello Atomico
+    subgraph "Tools (Atomic Actions)"
+        Fill["fillInputTool.js"]
+        Accordion["accordionTool.js"]
+        Radio["radioTool.js"]
+        Autocomplete["fillAutocompleteTool.js"]
+        Overlay["waitForOverlayTool.js"]
+    end
+
+    %% Browser
+    subgraph "Playwright Engine"
+        Browser["Chromium Instance"]
+    end
+
+    %% Relazioni
+    Client -- "POST /insert-pda" --> Server
+    Server -- "insertPDA(data, pdaId)" --> BM
+    BM -- "startJob()" --> Jobs
+    BM -- "Execute" --> PDA
+    
+    PDA -- "1s delay between" --> PDA
+    PDA -- "Uses" --> Accordion
+    PDA -- "Uses" --> Fill
+    PDA -- "Uses" --> Autocomplete
+    PDA -- "Uses" --> Radio
+    
+    Accordion & Fill & Autocomplete & Radio -- "Wait for" --> Overlay
+    Accordion & Fill & Autocomplete & Radio -- "Commands" --> Browser
+    
+    Browser -- "Automation" --> Fastweb
+    
+    Client -- "GET /job-status/:id" --> Server
+    Server -- "getJobStatus()" --> BM
+    BM -- "Read" --> Jobs
+```
+
+---
+
+## Tool di Automazione
+
+Questi tool si trovano in `src/tools/` e sono progettati per essere **resilienti** (Retry Logic) e **consapevoli** (Overlay Detection).
+
+### 🛡️ Filosofia "Resiliente"
+Tutti i tool di interazione (`fill`, `click`, `select`) implementano:
+1.  **Retry Automatico**: Se un'azione fallisce (es. elemento non cliccacbile), il sistema riprova fino a 3 volte con backoff esponenziale.
+2.  **Overlay Detection**: Dopo ogni azione, il tool controlla automaticamente se la pagina ha attivato un caricamento (`#overlay` di Fastweb) e attende che finisca prima di restituire il controllo.
+
+### Lista Tool Principali
+
+#### 1. `fillInputTool.js`
+Inserisce testo in un campo input standard.
+- **Uso**: `await fillInput(page, locator, value)`
+- **Feature**: Attesa visibilità, pulizia campo, retry, attesa overlay.
+
+#### 2. `fillAutocompleteTool.js`
+Gestisce i campi con menu a tendina di ricerca (es. Comune).
+- **Uso**: `await fillAutocomplete(page, locator, value)`
+- **Feature**: Digita, attende menu, **match rigoroso** (esatto), click, attesa overlay.
+
+#### 3. `radioTool.js`
+Seleziona pulsanti radio in modo sicuro.
+- **Uso**: `await checkRadioButton(page, locator)`
+- **Feature**: Controllo stato (evita doppi click), force check, retry, attesa overlay.
+
+#### 4. `selectOptionTool.js`
+Gestisce i menu a tendina classici (`<select>`).
+- **Uso**: `await selectOption(page, locator, value)`
+- **Feature**: Attesa options, retry, attesa overlay.
+
+#### 5. `accordionTool.js`
+Apre/Chiude pannelli accordion.
+- **Uso**: `await setAccordionState(page, sectionName, desiredState)`
+- **Feature**: Cerca per testo, verifica stato attuale (`aria-expanded`), agisce solo se necessario.
+
+#### 6. `waitForOverlayTool.js`
+Tool di basso livello usato da tutti gli altri.
+- **Uso**: `await waitForOverlay(page)`
+- **Funzione**: Monitora il DOM per l'elemento `#overlay`. Se appare, blocca l'esecuzione finché non sparisce.
+
+---
+
+## Procedure
+
+Le procedure (`src/procedures/`) uniscono i tool per flow complessi.
+
+### `initPDA.js`
+Inizializza una nuova pratica.
+1.  Naviga a Global Search.
+2.  Clicca "Inserisci Ordine".
+3.  Seleziona Prodotto "IS.0228.0601NA".
+4.  Attende URL "CPQOrder".
+5.  **Reset Accordion**: Chiude forzatamente tutti i pannelli per garantire uno stato pulito. Fallisce se non riesce.
+
+---
+
+## Mappatura Locatori
+
+Il file `stuff/pda_data.json` contiene la mappatura dei campi.
+Ogni campo è definito da:
+- **`locator`**: Selettore CSS (es. `input[name="..."]`).
+- **`type`**: Tipo di tool da usare (`text`, `radio`, `select`, `autocomplete`).
+- **`value`**: Valore di default o test.
+
+---
+
+## API Reference
+
+Il server espone i seguenti endpoint POST:
 
 ### 1. Apri Browser
-Apre un'istanza di Chromium (non headless) e naviga verso un URL specificato.
-
 - **URL**: `/open-browser`
-- **Metodo**: `POST`
-- **Body (JSON)**:
-    - `url` (opzionale): L'indirizzo web da aprire.
-
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "message": "Browser aperto e navigazione completata.",
-        "url": "[URL]"
-    }
-    ```
-- **Risposta Errore (400 Bad Request)**:
-    ```json
-    {
-        "success": false,
-        "error": "Messaggio di errore"
-    }
-    ```
-
-
-#### Esempi
-```bash
-# Apre l'URL di default
-curl -X POST http://localhost:3000/open-browser -H "Content-Type: application/json" -d '{}'
-
-# Apre un URL specifico
-curl -X POST http://localhost:3000/open-browser -H "Content-Type: application/json" -d '{"url":"https://www.google.com"}'
-```
-
-
----
+- **Body**: `{ "url": "..." }`
 
 ### 2. Login
-Esegue l'autenticazione automatica sul portale Fastweb.
-
 - **URL**: `/login`
-- **Metodo**: `POST`
-- **Body (JSON)**:
-    - `username` (obbligatorio): Username Fastweb.
-    - `password` (obbligatorio): Password Fastweb.
-
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "message": "Login effettuato con successo.",
-        "url": "[Nuova URL dopo redirect]"
-    }
-    ```
-- **Risposta Errore (401 Unauthorized)**:
-    ```json
-    {
-        "success": false,
-        "error": "Login failed. Please check credentials."
-    }
-    ```
-- **Risposta Errore (Sessione Concorrente)**:
-    ```json
-    {
-        "success": false,
-        "error": "Concurrent Session Detected"
-    }
-    ```
-
-
-#### Esempio
-```bash
-curl -X POST http://localhost:3000/login -H "Content-Type: application/json" -d '{"username":"MIO_USER", "password":"MIA_PASSWORD"}'
-```
-
-
----
+- **Body**: `{ "username": "...", "password": "..." }`
 
 ### 3. Logout Sicuro
-Esegue il logout formale dal portale Fastweb navigando verso GlobalSearch e cliccando su "Esci".
-
 - **URL**: `/secure-logout`
-- **Metodo**: `POST`
-
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "message": "Logout effettuato con successo."
-    }
-    ```
-- **Risposta Errore (500 Internal Server Error)**:
-    ```json
-    {
-        "success": false,
-        "error": "Logout failed..."
-    }
-    ```
-
-#### Esempio
-```bash
-curl -X POST http://localhost:3000/secure-logout
-```
-
----
 
 ### 4. Stato Pagina
-Restituisce l'URL e il titolo della pagina attualmente aperta nel browser.
-
 - **URL**: `/current-page`
-- **Metodo**: `POST`
-
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "browserOpen": true,
-        "url": "https://...",
-        "title": "Titolo Pagina"
-    }
-    ```
-    Se il browser è chiuso:
-    ```json
-    {
-        "success": true,
-        "browserOpen": false,
-        "url": null,
-        "title": null
-    }
-    ```
-
-
-#### Esempio
-```bash
-curl -X POST http://localhost:3000/current-page
-```
-
-
----
 
 ### 5. Chiudi Browser
-Chiude l'istanza del browser attualmente aperta. Rispetta lo stato della sessione a meno che non venga forzato.
-
 - **URL**: `/close-browser`
-- **Metodo**: `POST`
-- **Body (JSON)**:
-    - `force` (opzionale): Se `true`, chiude il browser anche se la sessione è attiva.
+- **Body**: `{ "force": true }`
 
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "status": "closed",
-        "message": "Browser chiuso correttamente."
-    }
-    ```
-    oppure (se la sessione è attiva):
-    ```json
-    {
-        "success": true,
-        "status": "mantained",
-        "message": "Il browser è rimasto aperto perché la sessione è attiva..."
-    }
-    ```
-
-
-#### Esempio
-```bash
-# Tenta di chiudere rispettando la sessione
-curl -X POST http://localhost:3000/close-browser -H "Content-Type: application/json" -d '{}'
-
-# Forza la chiusura
-curl -X POST http://localhost:3000/close-browser -H "Content-Type: application/json" -d '{"force": true}'
-```
-
-
----
-
-### 6. Stato Sessione (Interno)
-Permette di consultare o aggiornare manualmente lo stato di "Logged In" nel file di stato locale (`session_state.json`), influenzando il comportamento di chiusura del browser.
-
+### 6. Stato Sessione
 - **URL**: `/api/session-status`
-- **Metodo**: `POST`
-- **Body (JSON)**:
-    - `logged` (opzionale): `true` o `false`. Se omesso, restituisce solo lo stato attuale.
-
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "isLoggedIn": true,
-        "message": "Stato sessione: LOGGED IN"
-    }
-    ```
-
-
-#### Esempio
-```bash
-# Legge lo stato
-curl -X POST http://localhost:3000/api/session-status
-
-# Imposta come loggato
-curl -X POST http://localhost:3000/api/session-status -H "Content-Type: application/json" -d '{"logged": true}'
-```
-
-
----
 
 ### 7. Inizializza PDA
-Avvia la procedura di creazione offerta (PDA) navigando verso `GlobalSearch`, selezionando 'Inserisci Ordine' e il codice 'IS.0228.0601NA'.
-
 - **URL**: `/pda-init`
-- **Metodo**: `POST`
+- **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
 
-- **Risposta Successo (200 OK)**:
-    ```json
-    {
-        "success": true,
-        "message": "PDA Initialized successfully...",
-        "url": "..."
-    }
-    ```
+### 8. Inserimento PDA (Sequenza Async)
+- **URL**: `/insert-pda`
+- **Body**: 
+  ```json
+  {
+    "pdaId": "mio-id-personalizzato",
+    "actions": [
+      { "type": "open_accordion", "name": "Dati Anagrafici" },
+      { "type": "fill", "locator": "input[name='...']", "value": "John" },
+      { "type": "radio", "locator": "input[value='M']" },
+      { "type": "wait", "value": 2000 }
+    ]
+  }
+  ```
+- **Azioni Supportate**:
+  | Azione (`type`) | Descrizione | Parametri |
+  | :--- | :--- | :--- |
+  | `open_accordion` | Apre un pannello fisarmonica | `name` (o `value`) |
+  | `close_accordion` | Chiude un pannello fisarmonica | `name` (o `value`) |
+  | `fill` / `text` | Inserisce testo in un input | `locator`, `value` |
+  | `autocomplete` | Gestisce menù di ricerca | `locator`, `value` |
+  | `radio` | Seleziona un pulsante radio | `locator` |
+  | `select` | Seleziona da menù a tendina | `locator`, `value` |
+  | `click` / `button` | Clicca un elemento generico | `locator` |
+  | `wait` | Attesa in millisecondi | `value` (o `ms`) |
 
-#### Esempio
-```bash
-curl -X POST http://localhost:3000/pda-init
-```
+- **Descrizione**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
+- **Note**: Tra un'operazione e l'altra viene inserita automaticamente un'attesa di **1 secondo** per garantire la stabilità. È possibile passare un `pdaId` personalizzato; se già in esecuzione, restituirà errore 409.
 
+### 9. Stato Job
+- **URL**: `/job-status/:id`
+- **Method**: GET
+- **Descrizione**: Restituisce il progresso e lo stato di un job in background tramite il suo `pdaId`.
+
+### 10. Screenshot
+- **URL**: `/page-screenshot` (o `/screenshot`)
+
+### 11. Codice Pagina
+- **URL**: `/page-code`
 
 ---
 
-## Test
+## Test e Script
 
-Nella cartella `test/` sono presenti gli script per i test automatici:
-
-- `full_flow_test.js`: Esegue un test completo: apertura, login e logout.
-- `test_login.js`: Testa specificamente la procedura di login.
-- `test_logout.js`: Testa specificamente la procedura di logout.
-
-Puoi eseguirli con node, ad esempio: `node test/full_flow_test.js`
-
-## Script di Utilità
-
-Nella cartella `scripts/` sono presenti script per interazione manuale e debug:
-
-- `interactive_browser.js`: Apre il browser e lo mantiene aperto per interazione manuale, utile per debug.
-
-Puoi eseguirlo con: `node scripts/interactive_browser.js`
+- **Test**: `node test/full_flow_test.js`
+- **Debug Manuale**: `node scripts/interactive_browser.js`
 
 ## Note Tecniche
 
-- Il server gestisce un'unica istanza di browser alla volta tramite la classe `BrowserManager` (Singleton).
-- Lo stato del login è persistito in `session_state.json`.
-- La configurazione (URL, Porta) è gestita in `config.json`.
-- Il browser viene avviato con la finestra massimizzata e modalità non-headless per visibilità.
-
-## Integrazione con n8n
-
-È possibile integrare questo server in un workflow **n8n** utilizzando il file `n8n_workflow.json` incluso nel progetto.
-
-### Come importare il workflow
-1. Apri n8n.
-2. Crea un nuovo workflow.
-3. Clicca sui tre puntini in alto a destra -> **Import from File**.
-4. Seleziona il file `n8n_workflow.json`.
-
-### Configurazione
-Il workflow di esempio include nodi per:
-- Login (dovrai sostituire `YOUR_USERNAME` e `YOUR_PASSWORD` nel nodo "Login to Fastweb").
-- Controllo Sessione.
-- Inizializzazione PDA.
-
-> **Nota per utenti Docker**: Se n8n gira in un container Docker, potrebbe non riuscire a raggiungere `localhost`. In tal caso, sostituisci `localhost` con `host.docker.internal` negli URL dei nodi HTTP Request.
+- **Singleton Browser**: Gestito da `browserManager.js`.
+- **Session State**: Persistito in `session_state.json`.
+- **Config**: `config.json`.

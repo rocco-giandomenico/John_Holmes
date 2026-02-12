@@ -1,6 +1,18 @@
-const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
+
+// Import procedure modules
+const openProcedure = require('./procedures/open');
+const loginProcedure = require('./procedures/login');
+const logoutProcedure = require('./procedures/logout');
+const initPDAProcedure = require('./procedures/initPDA');
+const getCurrentStateProcedure = require('./procedures/getCurrentState');
+const closeProcedure = require('./procedures/close');
+const getPageScreenshotProcedure = require('./procedures/getPageScreenshot');
+const getPageCodeProcedure = require('./procedures/getPageCode');
+const insertPDAProcedure = require('./procedures/insertPDA');
+
+
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const STATE_FILE = path.join(__dirname, '..', 'session_state.json');
@@ -22,192 +34,193 @@ class BrowserManager {
         this.browser = null;
         this.context = null;
         this.page = null;
+        this.jobs = {}; // Mantiene lo stato dei job in background
     }
 
-    async open(url = DEFAULT_URL) {
-        // Reset login state on ogni apertura
-        this.setLoggedIn(false);
+    /**
+     * Avvia un job in background.
+     * @param {string} type - Tipo di procedura (es. 'insert-pda').
+     * @param {Function} taskFn - Funzione async che esegue il lavoro.
+     * @param {string} [customId] - ID opzionale (pdaId) fornito dall'utente.
+     * @returns {string} pdaId creato.
+     */
+    startJob(type, taskFn, customId) {
+        let pdaId = customId || `${type}_${Date.now()}`;
 
-        if (this.browser) {
-            console.log(`Browser già aperto. Navigazione a ${url}...`);
-            await this.page.goto(url);
-            return url;
+        if (this.jobs[pdaId] && this.jobs[pdaId].status === 'running') {
+            throw new Error(`Un job con ID '${pdaId}' è già in esecuzione.`);
         }
 
-        console.log('Avvio del browser...');
-        this.browser = await chromium.launch({
-            headless: false,
-            args: ['--start-maximized']
+        this.jobs[pdaId] = {
+            id: pdaId,
+            type: type,
+            status: 'running',
+            progress: 0,
+            lastAction: 'Avvio procedura...',
+            startTime: new Date().toISOString(),
+            endTime: null,
+            result: null,
+            error: null
+        };
+
+        // Esegue in background senza attendere
+        taskFn(pdaId, (progress, lastAction) => {
+            this.updateJob(pdaId, { progress, lastAction });
+        }).then(result => {
+            this.updateJob(pdaId, { status: 'completed', progress: 100, result, endTime: new Date().toISOString() });
+        }).catch(error => {
+            console.error(`Job ${pdaId} fallito:`, error);
+            this.updateJob(pdaId, { status: 'failed', error: error.message, endTime: new Date().toISOString() });
         });
 
-        this.context = await this.browser.newContext({ viewport: null });
-        this.page = await this.context.newPage();
-
-        console.log(`Navigazione a ${url}...`);
-        await this.page.goto(url);
-        return url;
+        return pdaId;
     }
 
+    updateJob(pdaId, data) {
+        if (this.jobs[pdaId]) {
+            this.jobs[pdaId] = { ...this.jobs[pdaId], ...data };
+        }
+    }
+
+    getJobStatus(pdaId) {
+        return this.jobs[pdaId] || null;
+    }
+
+    getAllJobs() {
+        return Object.values(this.jobs);
+    }
+
+    /**
+     * Apre il browser e naviga verso l'URL specificato.
+     * Delega la logica alla procedura esterna e mantiene lo stato del singleton.
+     * 
+     * @param {string} url - L'indirizzo web da aprire (default da config).
+     * @returns {Promise<string>} - L'URL finale dove si trova il browser.
+     */
+    async open(url = DEFAULT_URL) {
+        // Reset dello stato di login su ogni nuova apertura/navigazione forzata
+        this.setLoggedIn(false);
+
+        // Chiama la procedura modularizzata passando lo stato attuale
+        const result = await openProcedure(url, this.browser, this.page);
+
+        // Se la procedura ha creato nuove istanze (browser non era già aperto),
+        // aggiorna i riferimenti interni del singleton.
+        if (result.browser) {
+            this.browser = result.browser;
+            this.context = result.context;
+            this.page = result.page;
+        }
+
+        return result.url;
+    }
+
+    /**
+     * Esegue la procedura di login delegando al modulo esterno.
+     * Se il browser non è aperto, lo apre automaticamente prima di procedere.
+     * 
+     * @param {string} username - Credenziali utente.
+     * @param {string} password - Credenziali utente.
+     * @returns {Promise<Object>} Risultato dell'operazione di login.
+     */
     async login(username, password) {
         if (!this.page) {
             await this.open();
         }
-
-        let currentUrl = this.page.url();
-        const intermediateURL = 'https://logon.fastweb.it/fwsso/landing.jsp?end_url=https%3A%2F%2Flogon.fastweb.it%2Fpartner';
-        const finalTargetURL = 'https://fastweb01.my.site.com/partnersales/apex/GlobalSearch?sfdc.tabName=01rw0000000kLSX';
-
-        // 1. Controllo se siamo già loggati o sulla pagina finale
-        if (currentUrl.includes('GlobalSearch')) {
-            console.log('Già su GlobalSearch. Sessione attiva.');
-            this.setLoggedIn(true);
-            return { success: true, url: currentUrl };
-        }
-
-        console.log('Tentativo di inserimento credenziali...');
-        try {
-            // Aspetto il campo username per un tempo breve (5s)
-            await this.page.waitForSelector('#username', { timeout: 5000 });
-
-            await this.page.fill('#username', username);
-            await this.page.fill('#password', password);
-
-            await Promise.all([
-                this.page.waitForNavigation({ waitUntil: 'networkidle', timeout: 60000 }),
-                this.page.click('button.accesso')
-            ]);
-        } catch (error) {
-            console.log('Timeout o errore durante l\'inserimento (possibile login manuale o sessione già avviata).');
-        }
-
-        currentUrl = this.page.url();
-        console.log(`URL attuale dopo azione di login: ${currentUrl}`);
-
-        // 2. Gestione percorso intermedio
-        if (currentUrl.includes(intermediateURL)) {
-            console.log('Raggiunta pagina intermedia, navigazione verso GlobalSearch...');
-            await this.page.goto(finalTargetURL, { waitUntil: 'networkidle' });
-            currentUrl = this.page.url();
-        }
-
-        // 3. Verifica finale
-        const isConcurrentSession = currentUrl.includes('sparkID=ConcurrentSessions');
-        const success = currentUrl.includes('GlobalSearch') && !isConcurrentSession;
-
-        if (isConcurrentSession) {
-            console.error('Login fallito: Sessione concorrente rilevata.');
-            this.setLoggedIn(false);
-            return {
-                success: false,
-                error: 'Concurrent Session Detected',
-                url: currentUrl
-            };
-        } else if (success) {
-            console.log('Login confermato (GlobalSearch raggiunta).');
-            this.setLoggedIn(true);
-            return { success: true, url: currentUrl };
-        } else {
-            console.error(`Login fallito. URL finale: ${currentUrl}`);
-            this.setLoggedIn(false);
-            throw new Error('Login failed. GlobalSearch destination not reached.');
-        }
-
-        return { success, url: currentUrl };
+        // Delega la logica alla procedura esterna, passando il contesto della pagina e la callback di stato
+        return await loginProcedure(this.page, username, password, this.setLoggedIn.bind(this));
     }
 
+    /**
+     * Esegue il logout sicuro dal portale Fastweb.
+     * Naviga verso SalesForce e clicca sul pulsante 'Esci'.
+     * 
+     * @returns {Promise<Object>} Esito dell'operazione.
+     * @throws {Error} Se non c'è una pagina attiva su cui operare.
+     */
     async logout() {
         if (!this.page) {
             throw new Error('No active page to logout from.');
         }
-
-        const logoutSuccessURL = 'https://logon.fastweb.it/fwsso/pages/Logout.jsp';
-        let currentUrl = this.page.url();
-
-        // 0. Se siamo già sulla pagina di logout, segniamo come successo
-        if (currentUrl.includes(logoutSuccessURL)) {
-            console.log('Già sulla pagina di logout. Aggiornamento stato.');
-            this.setLoggedIn(false);
-            return { success: true, message: 'Già disconnesso.' };
-        }
-
-        const logoutRedirectURL = 'https://fastweb01.my.site.com/partnersales/apex/GlobalSearch?sfdc.tabName=01rw0000000kLSX';
-
-        console.log('Avvio procedura di logout sicuro...');
-
-        // 1. Vai alla pagina GlobalSearch
-        console.log('Navigazione verso GlobalSearch per il logout...');
-        await this.page.goto(logoutRedirectURL, { waitUntil: 'networkidle' });
-
-        // 2. Clicca su NOCOMPANY (User Navigation)
-        console.log('Apertura menu utente (#userNavLabel)...');
-        await this.page.waitForSelector('#userNavLabel', { timeout: 10000 });
-        await this.page.click('#userNavLabel');
-
-        // 3. Clicca su Esci
-        console.log('Click su Esci...');
-        await this.page.waitForSelector('a[title="Esci"]', { timeout: 5000 });
-
-        await Promise.all([
-            this.page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
-            this.page.click('a[title="Esci"]')
-        ]);
-
-        const finalUrl = this.page.url();
-        const success = finalUrl.includes(logoutSuccessURL);
-
-        if (success) {
-            console.log('Logout confermato (URL di logout raggiunto).');
-            this.setLoggedIn(false);
-            return { success: true, message: 'Logout effettuato con successo.' };
-        } else {
-            console.error(`Logout non confermato. URL attuale: ${finalUrl}`);
-            throw new Error('Logout failed. Success landing page not reached.');
-        }
+        // Delega la logica alla procedura esterna
+        return await logoutProcedure(this.page, this.setLoggedIn.bind(this));
     }
 
+    /**
+     * Inizializza una nuova Proposta di Abbonamento (PDA).
+     * Naviga verso la procedura di inserimento ordine e seleziona il codice prodotto.
+     * 
+     * @returns {Promise<Object>} Esito dell'operazione e URL raggiunto.
+     * @throws {Error} Se il browser non è aperto o l'utente non è loggato.
+     */
+    async initPDA() {
+        if (!this.page) {
+            throw new Error('Browser not open or page not available. Please login first.');
+        }
+        // Delega la logica alla procedura esterna
+        return await initPDAProcedure(this.page);
+    }
+
+    /**
+     * Avvia il job di inserimento dati PDA.
+     * @param {Object} data - Dati da inserire.
+     * @param {string} [pdaId] - ID personalizzato.
+     * @returns {string} pdaId.
+     */
+    async insertPDA(data, pdaId) {
+        if (!this.page) {
+            throw new Error('Browser not open or page not available.');
+        }
+
+        return this.startJob('insert-pda', async (id, updateStatus) => {
+            return await insertPDAProcedure(this.page, data, updateStatus);
+        }, pdaId);
+    }
+
+    /**
+     * Restituisce lo stato attuale della sessione browser.
+     * 
+     * @returns {Promise<Object>} Oggetto contenente lo stato di apertura, URL e titolo.
+     */
     async getCurrentState() {
-        if (!this.browser) {
-            return {
-                browserOpen: false,
-                url: null,
-                title: null
-            };
-        }
-
-        try {
-            const url = this.page.url();
-            const title = await this.page.title();
-            return {
-                browserOpen: true,
-                url,
-                title
-            };
-        } catch (error) {
-            console.error('Errore durante il recupero dello stato della pagina:', error);
-            return {
-                browserOpen: true,
-                error: error.message
-            };
-        }
+        return await getCurrentStateProcedure(this.browser, this.page);
     }
 
+    /**
+     * Cattura uno screenshot della pagina corrente.
+     * 
+     * @returns {Promise<string>} Screenshot in formato Base64.
+     */
+    async getScreenshot() {
+        return await getPageScreenshotProcedure(this.page);
+    }
+
+    /**
+     * Recupera il codice HTML della pagina corrente.
+     * 
+     * @returns {Promise<string>} Contenuto HTML.
+     */
+    async getPageCode() {
+        return await getPageCodeProcedure(this.page);
+    }
+
+    /**
+     * Chiude il browser rispettando le direttive di persistenza della sessione.
+     * 
+     * @param {boolean} force - Se true, ignora lo stato della sessione e chiude comunque.
+     * @returns {Promise<string>} Esito della chiusura ('closed' o 'mantained').
+     */
     async close(force = false) {
-        if (!this.browser) {
-            throw new Error('No browser is currently open.');
+        const isLoggedIn = this.getLoggedInStatus();
+        const result = await closeProcedure(this.browser, force, isLoggedIn);
+
+        if (result === 'closed') {
+            this.browser = null;
+            this.context = null;
+            this.page = null;
         }
 
-        const state = this._readState();
-        if (!force && state.isLoggedIn) {
-            console.log('Browser mantenuto aperto come da direttiva (sessione attiva).');
-            return 'mantained';
-        }
-
-        console.log('Chiusura del browser...');
-        await this.browser.close();
-        this.browser = null;
-        this.context = null;
-        this.page = null;
-        return 'closed';
+        return result;
     }
 
     getLoggedInStatus() {
@@ -239,50 +252,6 @@ class BrowserManager {
             fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
         } catch (error) {
             console.error('Errore scrittura stato:', error);
-        }
-    }
-
-    async initPDA() {
-        if (!this.page) {
-            throw new Error('Browser not open or page not available. Please login first.');
-        }
-
-        const pdaUrl = 'https://fastweb01.my.site.com/partnersales/apex/GlobalSearch?sfdc.tabName=01rw0000000kLSX';
-
-        console.log('Navigazione verso pagina PDA...');
-        await this.page.goto(pdaUrl, { waitUntil: 'networkidle' });
-
-        // 1. Clicca su 'Inserisci Ordine'
-        console.log('Cerco bottone "Inserisci Ordine"...');
-        const inserisciOrdineBtn = this.page.locator('text=Inserisci Ordine');
-        await inserisciOrdineBtn.waitFor({ state: 'visible', timeout: 10000 });
-        await inserisciOrdineBtn.click();
-
-        // 2. Clicca su 'IS.0228.0601NA'
-        console.log('Cerco opzione "IS.0228.0601NA"...');
-        const isCodeBtn = this.page.locator('text=IS.0228.0601NA');
-        await isCodeBtn.waitFor({ state: 'visible', timeout: 10000 });
-        await isCodeBtn.click();
-
-        // 3. Verifica successo: 'Dati Anagrafici'
-        console.log('Attendo sezione "Dati Anagrafici"...');
-        const datiAnagraficiSection = this.page.locator('text=Dati Anagrafici');
-
-        try {
-            await datiAnagraficiSection.waitFor({ state: 'visible', timeout: 15000 });
-            console.log('Sezione "Dati Anagrafici" trovata. Successo.');
-            return {
-                success: true,
-                message: 'PDA Initialized successfully (Dati Anagrafici reached).',
-                url: this.page.url()
-            };
-        } catch (error) {
-            console.error('Sezione "Dati Anagrafici" NON trovata.');
-            return {
-                success: false,
-                message: 'PDA flow failed. "Dati Anagrafici" section not found.',
-                url: this.page.url()
-            };
         }
     }
 
