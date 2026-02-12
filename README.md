@@ -44,63 +44,51 @@ Il progetto è strutturato in moduli:
 
 ### Schema di Flusso
 ```mermaid
-graph TD
-    %% Attori Esterni
-    Client["Client (Postman/Script)"]
-    Fastweb["Portale Fastweb/Salesforce"]
-
-    %% Livello Server
-    subgraph "API Layer (Express)"
+---
+config:
+  layout: elk
+---
+flowchart TB
+ subgraph subGraph0["API Layer (Express)"]
         Server["server.js"]
-    end
-
-    %% Livello Logica Core
-    subgraph "Core Agent (Singleton)"
+  end
+ subgraph subGraph1["Core Agent (Singleton)"]
         BM["BrowserManager.js"]
         Jobs["Jobs Repository (RAM)"]
-    end
-
-    %% Livello Operativo
-    subgraph "Procedures (Workflow)"
+  end
+ subgraph subGraph2["Procedures (Workflow)"]
         PDA["insertPDA.js (Sequential)"]
         Login["login.js"]
         Init["initPDA.js"]
-    end
-
-    %% Livello Atomico
-    subgraph "Tools (Atomic Actions)"
+  end
+ subgraph subGraph3["Tools (Atomic Actions)"]
         Fill["fillInputTool.js"]
         Accordion["accordionTool.js"]
         Radio["radioTool.js"]
         Autocomplete["fillAutocompleteTool.js"]
         Overlay["waitForOverlayTool.js"]
-    end
-
-    %% Browser
-    subgraph "Playwright Engine"
+  end
+ subgraph subGraph4["Playwright Engine"]
         Browser["Chromium Instance"]
-    end
-
-    %% Relazioni
-    Client -- "POST /insert-pda" --> Server
-    Server -- "insertPDA(data, pdaId)" --> BM
-    BM -- "startJob()" --> Jobs
-    BM -- "Execute" --> PDA
-    
-    PDA -- "1s delay between" --> PDA
-    PDA -- "Uses" --> Accordion
-    PDA -- "Uses" --> Fill
-    PDA -- "Uses" --> Autocomplete
-    PDA -- "Uses" --> Radio
-    
-    Accordion & Fill & Autocomplete & Radio -- "Wait for" --> Overlay
-    Accordion & Fill & Autocomplete & Radio -- "Commands" --> Browser
-    
-    Browser -- "Automation" --> Fastweb
-    
+  end
+    Client["Client (Postman/Script)"] -- "POST /insert-pda" --> Server
+    Server -- insertPDA(data, pdaId) --> BM
+    BM -- startJob() --> Jobs
+    BM -- Execute --> PDA
+    PDA -- 1s delay between --> PDA
+    PDA -- Uses --> Accordion & Fill & Autocomplete & Radio
+    Accordion -- Wait for --> Overlay
+    Fill -- Wait for --> Overlay
+    Autocomplete -- Wait for --> Overlay
+    Radio -- Wait for --> Overlay
+    Accordion -- Commands --> Browser
+    Fill -- Commands --> Browser
+    Autocomplete -- Commands --> Browser
+    Radio -- Commands --> Browser
+    Browser -- Automation --> Fastweb["Portale Fastweb/Salesforce"]
     Client -- "GET /job-status/:id" --> Server
-    Server -- "getJobStatus()" --> BM
-    BM -- "Read" --> Jobs
+    Server -- getJobStatus() --> BM
+    BM -- Read --> Jobs
 ```
 
 ---
