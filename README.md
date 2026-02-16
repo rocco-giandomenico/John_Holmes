@@ -171,7 +171,8 @@ Il server espone i seguenti endpoint POST:
 
 ### 2. Login
 - **URL**: `/login`
-- **Body**: `{ "username": "...", "password": "..." }`
+- **Metodo**: POST
+- **Nota**: Le credenziali (`USERNAME` e `PASSWORD`) vengono lette **esclusivamente** da `config.json`. Eventuali parametri inviati nel body verranno ignorati.
 
 ### 3. Logout Sicuro
 - **URL**: `/secure-logout`

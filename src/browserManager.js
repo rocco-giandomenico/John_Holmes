@@ -31,7 +31,7 @@ try {
     console.error('Errore caricamento config.json, uso fallback.');
 }
 
-const DEFAULT_URL = config.FASTWEB_DEFAULT_URL || 'https://logon.fastweb.it/oam/server/obrareq.cgi';
+const DEFAULT_URL = config.DEFAULT_URL || 'https://logon.fastweb.it/oam/server/obrareq.cgi';
 
 
 
@@ -49,9 +49,10 @@ class BrowserManager {
      * @param {string} type - Tipo di procedura (es. 'execute-job').
      * @param {Function} taskFn - Funzione async che esegue il lavoro.
      * @param {string} [customId] - ID opzionale (pdaId) fornito dall'utente.
+     * @param {string} [name] - Nome descrittivo del job per supervisione umana.
      * @returns {string} pdaId creato.
      */
-    startJob(type, taskFn, customId) {
+    startJob(type, taskFn, customId, name) {
         let pdaId = customId || `${type}_${Date.now()}`;
 
         if (this.jobs[pdaId] && this.jobs[pdaId].status === 'running') {
@@ -61,6 +62,7 @@ class BrowserManager {
         this.jobs[pdaId] = {
             id: pdaId,
             type: type,
+            name: name || 'Job senza nome',
             status: 'running',
             progress: 0,
             lastAction: 'Avvio procedura...',
@@ -115,7 +117,7 @@ class BrowserManager {
             console.error('Errore ricaricamento config.json in open():', error);
         }
 
-        const targetUrl = url || config.FASTWEB_DEFAULT_URL || DEFAULT_URL;
+        const targetUrl = url || config.DEFAULT_URL || DEFAULT_URL;
 
         // Reset dello stato (Jobs e Sessione) su ogni nuova apertura/navigazione forzata
         this.jobs = {};
@@ -194,7 +196,7 @@ class BrowserManager {
 
         return this.startJob('execute-job', async (id, updateStatus) => {
             return await executeJobProcedure(this.page, data, updateStatus);
-        }, pdaId);
+        }, pdaId, data.name);
     }
 
     /**

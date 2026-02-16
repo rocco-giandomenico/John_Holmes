@@ -4,6 +4,9 @@ const { checkRadioButton } = require('../tools/radioTool');
 const { selectOption } = require('../tools/selectOptionTool');
 const { setAccordionState } = require('../tools/accordionTool');
 
+// Import predefined procedures
+const initPDAProcedure = require('./initPDA');
+
 /**
  * Procedura di esecuzione job con sequenza di azioni.
  * Esegue una lista piatta di azioni in sequenza.
@@ -39,6 +42,13 @@ async function executeJob(page, data, updateStatus) {
 
         try {
             switch (action.type) {
+                case 'procedure':
+                    if (action.name === 'initPDA') {
+                        await initPDAProcedure(page);
+                    } else {
+                        console.warn(`Procedura non riconosciuta: ${action.name}`);
+                    }
+                    break;
                 case 'open_accordion':
                 case 'close_accordion':
                     const state = action.type === 'open_accordion' ? 'open' : 'close';

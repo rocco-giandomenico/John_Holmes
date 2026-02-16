@@ -44,11 +44,19 @@ app.post('/open-browser', async (req, res) => {
  */
 app.post('/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        // Ricarica config per intercettare modifiche on-the-fly senza riavvio
+        let currentConfig = config;
+        try {
+            currentConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+        } catch (e) { }
+
+        const username = currentConfig.USERNAME;
+        const password = currentConfig.PASSWORD;
+
         if (!username || !password) {
-            return res.status(400).json({
+            return res.status(500).json({
                 success: false,
-                error: 'Username e Password sono obbligatori.'
+                error: 'Credenziali (USERNAME/PASSWORD) mancanti in config.json.'
             });
         }
 
