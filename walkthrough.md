@@ -54,6 +54,50 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - **Verification**: Verified via `test/verify_launch_config.js`.
 
 
+### 9. Project Audit & Cleanup
+- **Change**: Audited the codebase against `.cursorrules`. Cleaned up `test/verify_launch_config.js` and removed outdated comments.
+- **Reason**: To maintain project hygiene and ensure documentation/tests match the latest implementation.
+- **Outcome**: leaner test scripts and up-to-date walkthrough.
+
+### 10. Refactoring: `executeJob`
+- **Change**: Renamed `insertPDA` procedure and associated methods/endpoints to `executeJob`.
+- **Reason**: The name `insertPDA` was too specific for a generic action processor. `executeJob` better reflects the modularity of the system.
+- **Outcome**: 
+  - Procedure file: `src/procedures/executeJob.js`.
+  - API endpoints: `POST /execute-job` (with legacy support for `/insert-pda`).
+  - Cleaner nomenclature in logs and documentation.
+
+### 11. New `POST /job-status` Endpoint
+- **Change**: Added `POST /job-status` (formerly `/job`) for checking job status via body `{ "pdaId": "..." }`.
+- **Reason**: To provide a more consistent API experience and use specific nomenclature.
+- **Outcome**: Status can now be checked via POST with `pdaId`.
+
+### 12. Cleanup: Removed Legacy `/insert-pda`
+- **Change**: Deleted the deprecated `/insert-pda` endpoint.
+- **Reason**: Consolidating the API around the more generic `executeJob` logic.
+- **Outcome**: leaner `server.js` and cleaner API definition.
+
+### 14. API Consolidation: `POST /jobs`
+- **Change**: Replaced the `GET /jobs` endpoint with `POST /jobs`.
+- **Reason**: To maintain a consistent POST-only API for job management and better handle future filtering/sorting in the request body.
+- **Outcome**: All job-related endpoints (`/execute-job`, `/job-status`, `/jobs`) now use the `POST` method.
+
+### 15. State Reset on Close & Open
+- **Change**: Updated `BrowserManager.close` and `BrowserManager.open` to reset `this.jobs` and call `this.setLoggedIn(false)`.
+- **Reason**: To ensure a completely clean state (no stale jobs or active session) whenever the browser is launched, navigated, or closed.
+- **Outcome**: Both `POST /open-browser` and `POST /close-browser` now trigger a full state reset.
+
+### 16. Job Logging & Retention
+- **Change**: Implemented automatic logging of job results to `logs/jobs.log` upon completion or failure. In-memory job history is now **retained** after logging.
+- **Reason**: To provide both a persistent file-based record and a queryable in-memory history during the active session.
+- **Outcome**: `POST /jobs` and `POST /job-status` will show historical jobs until an explicit browser open/close resets the state.
+
+## Verification
+
+### Automated Tests
+- `node test/verify_launch_config.js`: Verified headless/headed toggle.
+
 ### Manual Verification
-- Verified that `README.md` accurately reflects the new API behavior.
-- Tested `POST /page-screenshot` and `POST /page-code` via Postman.
+- Reviewed project structure: All procedures are modularized in `src/procedures/`.
+- Verified `README.md` and `walkthrough.md` reflect the current state.
+- Checked for any unused files (none found).

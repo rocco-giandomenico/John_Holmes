@@ -73,7 +73,7 @@ flowchart TB
     Client["Client (Postman/Script)"] -- "POST /insert-pda" --> Server
     Server -- insertPDA(data, pdaId) --> BM
     BM -- startJob() --> Jobs
-    BM -- Execute --> PDA
+    BM -- Execute --> PDA["executeJob.js (Sequential)"]
     PDA -- 1s delay between --> PDA
     PDA -- Uses --> Accordion & Fill & Autocomplete & Radio
     Accordion -- Wait for --> Overlay
@@ -149,9 +149,9 @@ Inizializza una nuova pratica.
 
 ---
 
-## Struttura Sequenze (PDA)
+## Struttura Sequenze (Job)
 
-Le sequenze di azioni per l'inserimento PDA devono essere inviate nel body della richiesta POST.
+Le sequenze di azioni per l'esecuzione di un job devono essere inviate nel body della richiesta POST.
 Ogni azione nella lista `actions` può contenere:
 - **`type`**: Il tipo di operazione (`text`, `radio`, `select`, `open_accordion`, etc.).
 - **`locator`**: Selettore CSS dell'elemento.
@@ -190,12 +190,12 @@ Il server espone i seguenti endpoint POST:
 - **URL**: `/pda-init`
 - **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
 
-### 8. Inserimento PDA (Sequenza Async)
-- **URL**: `/insert-pda`
+### 8. Esecuzione Job (Sequenza Async)
+- **URL**: `/execute-job`
 - **Body**: 
   ```json
   {
-    "pdaId": "mio-id-personalizzato",
+    "pdaId": "id-univoco-job",
     "actions": [
       { "type": "open_accordion", "name": "Dati Anagrafici" },
       { "type": "fill", "locator": "input[name='...']", "value": "John" },
@@ -219,13 +219,17 @@ Il server espone i seguenti endpoint POST:
 - **Descrizione**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
 - **Note**: Tra un'operazione e l'altra viene inserita automaticamente un'attesa di **1 secondo** per garantire la stabilità. È possibile passare un `pdaId` personalizzato; se già in esecuzione, restituirà errore 409.
 
-### 9. Stato Job
-- **URL**: `/job-status/:id`
-- **Method**: GET
-- **Descrizione**: Restituisce il progresso e lo stato di un job in background tramite il suo `pdaId`.
+### 9. Stato Job (POST)
+- **URL**: `/job-status`
+- **Method**: POST
+- **Body**: `{ "pdaId": "id-del-job" }`
+- **Descrizione**: Restituisce il progresso e lo stato di un job in background.
 
-### 10. Screenshot
-- **URL**: `/page-screenshot` (o `/screenshot`)
+
+### 10. Lista Job (POST)
+- **URL**: `/jobs`
+- **Method**: POST
+- **Descrizione**: Restituisce la lista di tutti i job gestiti dal server.
 
 ### 11. Codice Pagina
 - **URL**: `/page-code`

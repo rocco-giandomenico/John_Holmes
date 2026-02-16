@@ -10,12 +10,19 @@ const getCurrentStateProcedure = require('./procedures/getCurrentState');
 const closeProcedure = require('./procedures/close');
 const getPageScreenshotProcedure = require('./procedures/getPageScreenshot');
 const getPageCodeProcedure = require('./procedures/getPageCode');
-const insertPDAProcedure = require('./procedures/insertPDA');
+const executeJobProcedure = require('./procedures/executeJob');
 
 
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
 const STATE_FILE = path.join(__dirname, '..', 'session_state.json');
+const LOGS_DIR = path.join(__dirname, '..', 'logs');
+const JOBS_LOG_PATH = path.join(LOGS_DIR, 'jobs.log');
+
+// Assicura che la cartella logs esista
+if (!fs.existsSync(LOGS_DIR)) {
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+}
 
 let config = {};
 try {
@@ -39,7 +46,7 @@ class BrowserManager {
 
     /**
      * Avvia un job in background.
-     * @param {string} type - Tipo di procedura (es. 'insert-pda').
+     * @param {string} type - Tipo di procedura (es. 'execute-job').
      * @param {Function} taskFn - Funzione async che esegue il lavoro.
      * @param {string} [customId] - ID opzionale (pdaId) fornito dall'utente.
      * @returns {string} pdaId creato.
@@ -68,9 +75,11 @@ class BrowserManager {
             this.updateJob(pdaId, { progress, lastAction });
         }).then(result => {
             this.updateJob(pdaId, { status: 'completed', progress: 100, result, endTime: new Date().toISOString() });
+            this._logJobResult(pdaId); // Salva su file
         }).catch(error => {
             console.error(`Job ${pdaId} fallito:`, error);
             this.updateJob(pdaId, { status: 'failed', error: error.message, endTime: new Date().toISOString() });
+            this._logJobResult(pdaId); // Salva su file
         });
 
         return pdaId;
@@ -108,7 +117,8 @@ class BrowserManager {
 
         const targetUrl = url || config.FASTWEB_DEFAULT_URL || DEFAULT_URL;
 
-        // Reset dello stato di login su ogni nuova apertura/navigazione forzata
+        // Reset dello stato (Jobs e Sessione) su ogni nuova apertura/navigazione forzata
+        this.jobs = {};
         this.setLoggedIn(false);
 
         // Chiama la procedura modularizzata passando lo stato attuale e la config headless
@@ -172,18 +182,18 @@ class BrowserManager {
     }
 
     /**
-     * Avvia il job di inserimento dati PDA.
-     * @param {Object} data - Dati da inserire.
+     * Avvia il job di esecuzione sequenza azioni (es. inserimento dati PDA).
+     * @param {Object} data - Dati e azioni da eseguire.
      * @param {string} [pdaId] - ID personalizzato.
      * @returns {string} pdaId.
      */
-    async insertPDA(data, pdaId) {
+    async executeJob(data, pdaId) {
         if (!this.page) {
             throw new Error('Browser not open or page not available.');
         }
 
-        return this.startJob('insert-pda', async (id, updateStatus) => {
-            return await insertPDAProcedure(this.page, data, updateStatus);
+        return this.startJob('execute-job', async (id, updateStatus) => {
+            return await executeJobProcedure(this.page, data, updateStatus);
         }, pdaId);
     }
 
@@ -228,6 +238,11 @@ class BrowserManager {
             this.browser = null;
             this.context = null;
             this.page = null;
+
+            // Reset dello stato interno al caricamento/chiusura
+            this.jobs = {};
+            this.setLoggedIn(false);
+            console.log('Stato BrowserManager resettato (Jobs e Sessione svuotati).');
         }
 
         return result;
@@ -262,6 +277,26 @@ class BrowserManager {
             fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
         } catch (error) {
             console.error('Errore scrittura stato:', error);
+        }
+    }
+
+    /**
+     * Salva il risultato di un job nel file di log.
+     * @param {string} pdaId 
+     */
+    _logJobResult(pdaId) {
+        const job = this.jobs[pdaId];
+        if (!job) return;
+
+        try {
+            const logEntry = {
+                timestamp: new Date().toISOString(),
+                ...job
+            };
+            fs.appendFileSync(JOBS_LOG_PATH, JSON.stringify(logEntry) + '\n');
+            console.log(`Risultato Job ${pdaId} salvato in ${JOBS_LOG_PATH}`);
+        } catch (error) {
+            console.error('Errore durante il salvataggio del log:', error);
         }
     }
 

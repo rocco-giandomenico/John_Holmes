@@ -5,14 +5,14 @@ const { selectOption } = require('../tools/selectOptionTool');
 const { setAccordionState } = require('../tools/accordionTool');
 
 /**
- * Procedura di inserimento PDA con sequenza di azioni.
+ * Procedura di esecuzione job con sequenza di azioni.
  * Esegue una lista piatta di azioni in sequenza.
  * 
  * @param {import('playwright').Page} page - Pagina del browser.
  * @param {Object} data - Oggetto contenente l'array di azioni { actions: [...] }.
  * @param {Function} updateStatus - Callback per il progresso (progress, lastAction).
  */
-async function insertPDA(page, data, updateStatus) {
+async function executeJob(page, data, updateStatus) {
     const actions = data.actions || [];
     if (!Array.isArray(actions)) {
         throw new Error('Il campo "actions" deve essere un array.');
@@ -87,4 +87,4 @@ async function insertPDA(page, data, updateStatus) {
     return { success: true, message: 'Sequenza completata con successo.' };
 }
 
-module.exports = insertPDA;
+module.exports = executeJob;

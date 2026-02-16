@@ -192,38 +192,30 @@ app.post('/pda-init', async (req, res) => {
 });
 
 /**
- * Endpoint per avviare l'inserimento PDA come Job.
- * Body: { "data": {...} } (Opzionale, altrimenti usa pda_sequence.json)
+ * Endpoint per avviare l'esecuzione di un Job (Sequenza di azioni).
+ * Body: { "data": {...}, "pdaId": "..." }
  */
-app.post('/insert-pda', async (req, res) => {
+app.post('/execute-job', async (req, res) => {
     try {
-        let data = req.body.data || req.body; // Accetta sia {data: {actions}} che direttamente {actions}
+        let data = req.body.data || req.body;
 
         if (!data || !data.actions) {
             return res.status(400).json({
                 success: false,
-                error: 'Formato non valido. Invia un JSON con un array di "actions".',
-                example: {
-                    pdaId: "mio-id-personalizzato",
-                    actions: [
-                        { type: "open_accordion", name: "Dati Anagrafici" },
-                        { type: "fill", locator: "input...", value: "valore" },
-                        { type: "wait", value: 2000 }
-                    ]
-                }
+                error: 'Formato non valido. Invia un JSON con un array di "actions".'
             });
         }
 
         const pdaIdReq = req.body.pdaId;
-        const pdaId = await browserManager.insertPDA(data, pdaIdReq);
+        const pdaId = await browserManager.executeJob(data, pdaIdReq);
         res.status(202).json({
             success: true,
             pdaId: pdaId,
-            message: 'Inserimento PDA (Sequenza) avviato in background.',
+            message: 'Esecuzione Job (Sequenza) avviata in background.',
             statusUrl: `/job-status/${pdaId}`
         });
     } catch (error) {
-        console.error('Errore durante avvio insert-pda:', error);
+        console.error('Errore durante avvio execute-job:', error);
         res.status(error.message.includes('già in esecuzione') ? 409 : 500).json({
             success: false,
             error: error.message
@@ -231,26 +223,36 @@ app.post('/insert-pda', async (req, res) => {
     }
 });
 
+
 /**
- * Endpoint per controllare lo stato di un job.
+ * Endpoint per controllare lo stato di un job (POST).
+ * Body: { "pdaId": "..." }
  */
-app.get('/job-status/:id', (req, res) => {
-    const pdaId = req.params.id;
+app.post('/job-status', (req, res) => {
+    const pdaId = req.body.pdaId || req.body.id;
+    if (!pdaId) {
+        return res.status(400).json({
+            success: false,
+            error: 'ID del job (pdaId) mancante nel body.'
+        });
+    }
+
     const job = browserManager.getJobStatus(pdaId);
     if (job) {
         res.status(200).json(job);
     } else {
         res.status(404).json({
             success: false,
-            error: 'PDA Job non trovato.'
+            error: 'Job non trovato.'
         });
     }
 });
 
+
 /**
- * Endpoint per listare tutti i job.
+ * Endpoint per listare tutti i job (POST).
  */
-app.get('/jobs', (req, res) => {
+app.post('/jobs', (req, res) => {
     const jobs = browserManager.getAllJobs();
     res.status(200).json(jobs);
 });
