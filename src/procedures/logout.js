@@ -1,3 +1,6 @@
+const { withRetry } = require('../tools/retryTool');
+const configLoader = require('../utils/configLoader');
+
 /**
  * Procedura di logout per il portale Fastweb.
  * Esegue una disconnessione sicura navigando verso GlobalSearch e interagendo con il menu utente.
@@ -21,26 +24,32 @@ async function logout(page, setLoggedIn) {
     // URL di base per iniziare la procedura di logout (Salesforce GlobalSearch)
     const logoutRedirectURL = 'https://fastweb01.my.site.com/partnersales/apex/GlobalSearch?sfdc.tabName=01rw0000000kLSX';
 
-    console.log('Avvio procedura di logout sicuro...');
+    const retries = configLoader.get('TOOLS_RETRY', 2);
 
-    // 1. Forza la navigazione verso GlobalSearch per assicurarsi che il menu utente sia presente
-    console.log('Navigazione verso GlobalSearch per il logout...');
-    await page.goto(logoutRedirectURL, { waitUntil: 'networkidle' });
+    try {
+        await withRetry(async () => {
+            // 1. Forza la navigazione verso GlobalSearch per assicurarsi che il menu utente sia presente
+            console.log('Navigazione verso GlobalSearch per il logout...');
+            await page.goto(logoutRedirectURL, { waitUntil: 'networkidle', timeout: 30000 });
 
-    // 2. Interazione con il menu utente (Salesforce User Navigation Label)
-    console.log('Apertura menu utente (#userNavLabel)...');
-    await page.waitForSelector('#userNavLabel', { timeout: 10000 });
-    await page.click('#userNavLabel');
+            // 2. Interazione con il menu utente (Salesforce User Navigation Label)
+            console.log('Apertura menu utente (#userNavLabel)...');
+            await page.waitForSelector('#userNavLabel', { timeout: 10000 });
+            await page.click('#userNavLabel');
 
-    // 3. Click sul link di logout ("Esci")
-    console.log('Click su Esci...');
-    await page.waitForSelector('a[title="Esci"]', { timeout: 5000 });
+            // 3. Click sul link di logout ("Esci")
+            console.log('Click su Esci...');
+            await page.waitForSelector('a[title="Esci"]', { timeout: 5000 });
 
-    // Attesa del completamento della navigazione dopo il click
-    await Promise.all([
-        page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
-        page.click('a[title="Esci"]')
-    ]);
+            // Attesa del completamento della navigazione dopo il click
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+                page.click('a[title="Esci"]')
+            ]);
+        }, retries, 2000);
+    } catch (error) {
+        console.error(`Errore durante la sequenza di logout dopo i retry: ${error.message}`);
+    }
 
     // 4. Verifica finale dell'URL di atterraggio
     const finalUrl = page.url();

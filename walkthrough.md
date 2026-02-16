@@ -107,9 +107,12 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
   4.  **Fallimento Finale**: Solo dopo aver esaurito i tentativi il sistema dichiara il fallimento del job.
 - **Outcome**: Massima resilienza anche in caso di picchi di lentezza del portale Fastweb.
 
-### 19. Job Enhancements: Names and Procedures
-- **Change**: Re-added support for job `"name"` and execution of full `"procedure"` steps (like `initPDA`) within sequence jobs.
 - **Outcome**: Improved logging clarity and modularity in job execution.
+
+### 20. Logout Procedure: Lightweight Retry Logic
+- **File**: `src/procedures/logout.js`
+- **Change**: Wrapped the logout sequence (GlobalSearch navigation -> Menu Click -> Logout Click) in a `withRetry` block.
+- **Outcome**: Increased reliability of the session termination process, ensuring that the browser state and session are correctly cleaned up even if the portal UI is laggy.
 
 ## Verification
 

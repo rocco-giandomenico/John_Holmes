@@ -1,3 +1,6 @@
+const { withRetry } = require('../tools/retryTool');
+const configLoader = require('../utils/configLoader');
+
 /**
  * Procedura di login per il portale Fastweb.
  * Gestisce l'inserimento credenziali, i reindirizzamenti intermedi e la rilevazione di sessioni concorrenti.
@@ -21,20 +24,25 @@ async function login(page, username, password, setLoggedIn) {
         return { success: true, url: currentUrl };
     }
 
+    // Tentativo di inserimento credenziali con logica di retry leggera
     console.log('Tentativo di inserimento credenziali...');
+    const retries = configLoader.get('TOOLS_RETRY', 2);
+
     try {
-        // Attende che i campi di input siano disponibili (timeout breve per efficienza)
-        await page.waitForSelector('#username', { timeout: 5000 });
+        await withRetry(async () => {
+            // Attende che i campi di input siano disponibili (timeout breve per efficienza)
+            await page.waitForSelector('#username', { timeout: 5000 });
 
-        // Inserimento credenziali
-        await page.fill('#username', username);
-        await page.fill('#password', password);
+            // Inserimento credenziali
+            await page.fill('#username', username);
+            await page.fill('#password', password);
 
-        // Click sul pulsante di accesso e attesa della navigazione
-        await Promise.all([
-            page.waitForNavigation({ waitUntil: 'networkidle', timeout: 60000 }),
-            page.click('button.accesso')
-        ]);
+            // Click sul pulsante di accesso e attesa della navigazione
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 }),
+                page.click('button.accesso')
+            ]);
+        }, retries, 2000);
     } catch (error) {
         // Se non troviamo i campi, potremmo essere già loggati o in una pagina diversa
         console.log('Timeout o errore durante l\'inserimento (possibile login manuale o sessione già avviata).');
