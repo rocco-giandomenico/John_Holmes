@@ -92,12 +92,31 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - **Reason**: To provide both a persistent file-based record and a queryable in-memory history during the active session.
 - **Outcome**: `POST /jobs` and `POST /job-status` will show historical jobs until an explicit browser open/close resets the state.
 
+### 17. Centralized Configuration: `configLoader`
+- **File**: `src/utils/configLoader.js`
+- **Change**: Created a centralized configuration loader.
+- **Outcome**: All modules (`server.js`, `browserManager.js`, and all tools) now consume settings from a single source, ensuring consistency.
+
+### 18. Tool Retry Logic & `TOOLS_RETRY`
+- **File**: `config.json`, all interactive tools.
+- **Change**: Implemented a global `TOOLS_RETRY` setting.
+- **Behavior**:
+  1.  **Tentativo Iniziale**: Il tool prova ad eseguire l'azione (es. click o inserimento testo).
+  2.  **Ciclo di Retry**: In caso di fallimento (elemento non trovato o UI bloccata), il tool riprova per un massimo di `TOOLS_RETRY` volte.
+  3.  **Backoff Esponenziale**: Tra i tentativi, l'attesa raddoppia (es. 1s, 2s, 4s) per permettere alla pagina di stabilizzarsi.
+  4.  **Fallimento Finale**: Solo dopo aver esaurito i tentativi il sistema dichiara il fallimento del job.
+- **Outcome**: Massima resilienza anche in caso di picchi di lentezza del portale Fastweb.
+
+### 19. Job Enhancements: Names and Procedures
+- **Change**: Re-added support for job `"name"` and execution of full `"procedure"` steps (like `initPDA`) within sequence jobs.
+- **Outcome**: Improved logging clarity and modularity in job execution.
+
 ## Verification
 
 ### Automated Tests
-- `node test/verify_launch_config.js`: Verified headless/headed toggle.
+- `node test/verify_launch_config.js`: Verified headless/headed toggle and config loading.
 
 ### Manual Verification
-- Reviewed project structure: All procedures are modularized in `src/procedures/`.
-- Verified `README.md` and `walkthrough.md` reflect the current state.
-- Checked for any unused files (none found).
+- Verified that setting `TOOLS_RETRY: 0` makes tools fail immediately.
+- Verified that `initPDA` can be called correctly inside a job action sequence.
+- Confirmed that `/login` strictly uses `config.json` credentials as requested.

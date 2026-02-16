@@ -1,3 +1,6 @@
+const { withRetry } = require('./retryTool');
+const configLoader = require('../utils/configLoader');
+
 /**
  * Assicura che un accordion sia nello stato desiderato (aperto o chiuso).
  * Verifica l'attributo 'aria-expanded' prima di cliccare per evitare toggle indesiderati.
@@ -7,24 +10,27 @@
  * @param {'open' | 'closed'} targetState - Lo stato finale desiderato. Default 'open'.
  */
 async function setAccordionState(page, locator, targetState = 'open') {
-    const section = page.locator(locator);
+    const retries = configLoader.get('TOOLS_RETRY', 2);
+    await withRetry(async () => {
+        const section = page.locator(locator);
 
-    // Verifichiamo se l'elemento esiste prima di procedere
-    await section.waitFor({ state: 'attached', timeout: 5000 });
+        // Verifichiamo se l'elemento esiste prima di procedere
+        await section.waitFor({ state: 'attached', timeout: 5000 });
 
-    const isExpanded = await section.getAttribute('aria-expanded') === 'true';
+        const isExpanded = await section.getAttribute('aria-expanded') === 'true';
 
-    if (targetState === 'open' && !isExpanded) {
-        console.log(`Espansione accordion: ${locator}`);
-        await section.click();
-        await page.waitForTimeout(1000); // Attesa per animazione CSS
-    } else if (targetState === 'closed' && isExpanded) {
-        console.log(`Chiusura accordion: ${locator}`);
-        await section.click();
-        await page.waitForTimeout(1000);
-    } else {
-        console.log(`Accordion ${locator} già nello stato desiderato: ${targetState}`);
-    }
+        if (targetState === 'open' && !isExpanded) {
+            console.log(`Espansione accordion: ${locator}`);
+            await section.click();
+            await page.waitForTimeout(1000); // Attesa per animazione CSS
+        } else if (targetState === 'closed' && isExpanded) {
+            console.log(`Chiusura accordion: ${locator}`);
+            await section.click();
+            await page.waitForTimeout(1000);
+        } else {
+            console.log(`Accordion ${locator} già nello stato desiderato: ${targetState}`);
+        }
+    }, retries, 1000);
 }
 
 module.exports = {

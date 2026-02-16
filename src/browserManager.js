@@ -14,7 +14,8 @@ const executeJobProcedure = require('./procedures/executeJob');
 
 
 
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+const configLoader = require('./utils/configLoader');
+
 const STATE_FILE = path.join(__dirname, '..', 'session_state.json');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
 const JOBS_LOG_PATH = path.join(LOGS_DIR, 'jobs.log');
@@ -24,14 +25,7 @@ if (!fs.existsSync(LOGS_DIR)) {
     fs.mkdirSync(LOGS_DIR, { recursive: true });
 }
 
-let config = {};
-try {
-    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-} catch (error) {
-    console.error('Errore caricamento config.json, uso fallback.');
-}
-
-const DEFAULT_URL = config.DEFAULT_URL || 'https://logon.fastweb.it/oam/server/obrareq.cgi';
+const DEFAULT_URL = configLoader.get('DEFAULT_URL', 'https://logon.fastweb.it/oam/server/obrareq.cgi');
 
 
 
@@ -109,14 +103,7 @@ class BrowserManager {
      * @returns {Promise<string>} - L'URL finale dove si trova il browser.
      */
     async open(url) {
-        // Ricarica la configurazione per applicare eventuali modifiche a HEADLESS/URL senza riavvio
-        try {
-            const freshConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-            config = { ...config, ...freshConfig };
-        } catch (error) {
-            console.error('Errore ricaricamento config.json in open():', error);
-        }
-
+        const config = configLoader.getConfig();
         const targetUrl = url || config.DEFAULT_URL || DEFAULT_URL;
 
         // Reset dello stato (Jobs e Sessione) su ogni nuova apertura/navigazione forzata

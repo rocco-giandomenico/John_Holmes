@@ -1,5 +1,6 @@
 const { waitForOverlay } = require('./waitForOverlayTool');
 const { withRetry } = require('./retryTool');
+const configLoader = require('../utils/configLoader');
 
 /**
  * Seleziona un'opzione da un menu a tendina in modo sicuro e resiliente.
@@ -23,7 +24,7 @@ async function selectOption(page, locator, value) {
 
             // ATTESA OVERLAY post-selezione
             await waitForOverlay(page);
-        }, 2, 1000);
+        }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
         return true;
     } catch (error) {

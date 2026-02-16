@@ -1,18 +1,9 @@
 const express = require('express');
 const browserManager = require('./browserManager');
-const fs = require('fs');
-const path = require('path');
-
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
-let config = {};
-try {
-    config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-} catch (error) {
-    console.error('Errore caricamento config.json nel server.');
-}
+const configLoader = require('./utils/configLoader');
 
 const app = express();
-const port = config.PORT || 3000;
+const port = configLoader.get('PORT', 3000);
 
 app.use(express.json());
 
@@ -44,14 +35,9 @@ app.post('/open-browser', async (req, res) => {
  */
 app.post('/login', async (req, res) => {
     try {
-        // Ricarica config per intercettare modifiche on-the-fly senza riavvio
-        let currentConfig = config;
-        try {
-            currentConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-        } catch (e) { }
-
-        const username = currentConfig.USERNAME;
-        const password = currentConfig.PASSWORD;
+        const config = configLoader.getConfig();
+        const username = config.USERNAME;
+        const password = config.PASSWORD;
 
         if (!username || !password) {
             return res.status(500).json({

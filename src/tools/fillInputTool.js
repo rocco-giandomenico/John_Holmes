@@ -1,5 +1,6 @@
 const { waitForOverlay } = require('./waitForOverlayTool');
 const { withRetry } = require('./retryTool');
+const configLoader = require('../utils/configLoader');
 
 /**
  * Inserisce un valore in un campo di input in modo sicuro e resiliente.
@@ -23,7 +24,7 @@ async function fillInput(page, locator, value) {
 
             // Attesa overlay post-inserimento
             await waitForOverlay(page);
-        }, 2, 1000); // 2 tentativi extra, ritardo iniziale 1s
+        }, configLoader.get('TOOLS_RETRY', 2), 1000); // Usa config o default 2
 
         return true;
     } catch (error) {

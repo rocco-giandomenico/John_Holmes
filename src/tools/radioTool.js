@@ -1,5 +1,6 @@
 const { waitForOverlay } = require('./waitForOverlayTool');
 const { withRetry } = require('./retryTool');
+const configLoader = require('../utils/configLoader');
 
 /**
  * Seleziona un pulsante radio in modo sicuro e resiliente.
@@ -28,7 +29,7 @@ async function checkRadioButton(page, locator) {
             } else {
                 console.log(`Radio button già selezionato: ${locator}`);
             }
-        }, 2, 1000);
+        }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
         return true;
     } catch (error) {

@@ -1,5 +1,6 @@
 const { waitForOverlay } = require('./waitForOverlayTool');
 const { withRetry } = require('./retryTool');
+const configLoader = require('../utils/configLoader');
 
 /**
  * Gestisce i campi Autocomplete (Typeahead).
@@ -65,7 +66,7 @@ async function fillAutocomplete(page, inputLocator, value, resultSelector = 'ul.
             // 5. Attesa finale per eventuali ricalcoli (overlay)
             await waitForOverlay(page);
 
-        }, 2, 1000); // 2 tentativi extra, ritardo iniziale 1s
+        }, configLoader.get('TOOLS_RETRY', 2), 1000); // Usa config o default 2
 
         return true;
     } catch (error) {
