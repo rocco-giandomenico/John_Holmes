@@ -37,10 +37,9 @@ npm run dev
 
 Il progetto è strutturato in moduli:
 - **`src/server.js`**: Entry point Express.js.
-- **`src/utils/browserManager.js`**: Singleton che gestisce l'istanza del browser Chromium.
+- **`src/browserManager.js`**: Singleton che gestisce l'istanza del browser Chromium.
 - **`src/tools/`**: Libreria di funzioni atomiche per interagire con la pagina (click, fill, wait).
 - **`src/procedures/`**: Script complessi che orchestrano più tool per completare task (es. Login, Init PDA).
-- **`stuff/pda_data.json`**: Mapping JSON dei selettori e dei dati.
 
 ### Schema di Flusso
 ```mermaid
@@ -150,13 +149,15 @@ Inizializza una nuova pratica.
 
 ---
 
-## Mappatura Locatori
+## Struttura Sequenze (PDA)
 
-Il file `stuff/pda_data.json` contiene la mappatura dei campi.
-Ogni campo è definito da:
-- **`locator`**: Selettore CSS (es. `input[name="..."]`).
-- **`type`**: Tipo di tool da usare (`text`, `radio`, `select`, `autocomplete`).
-- **`value`**: Valore di default o test.
+Le sequenze di azioni per l'inserimento PDA devono essere inviate nel body della richiesta POST.
+Ogni azione nella lista `actions` può contenere:
+- **`type`**: Il tipo di operazione (`text`, `radio`, `select`, `open_accordion`, etc.).
+- **`locator`**: Selettore CSS dell'elemento.
+- **`value`**: Valore da inserire o selezionare.
+- **`name`**: Usato per gli accordion (testo del pannello).
+- **`description`**: Testo opzionale per il log del progresso.
 
 ---
 
@@ -231,13 +232,11 @@ Il server espone i seguenti endpoint POST:
 
 ---
 
-## Test e Script
-
-- **Test**: `node test/full_flow_test.js`
-- **Debug Manuale**: `node scripts/interactive_browser.js`
+## Test e Debug
+- **Verifica API**: Usa Postman o cURL per testare gli endpoint descritti sopra.
 
 ## Note Tecniche
 
 - **Singleton Browser**: Gestito da `browserManager.js`.
 - **Session State**: Persistito in `session_state.json`.
-- **Config**: `config.json`.
+- **Config**: `config.json` (include l'opzione `"HEADLESS": true/false`).

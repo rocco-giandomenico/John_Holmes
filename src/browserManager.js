@@ -97,12 +97,22 @@ class BrowserManager {
      * @param {string} url - L'indirizzo web da aprire (default da config).
      * @returns {Promise<string>} - L'URL finale dove si trova il browser.
      */
-    async open(url = DEFAULT_URL) {
+    async open(url) {
+        // Ricarica la configurazione per applicare eventuali modifiche a HEADLESS/URL senza riavvio
+        try {
+            const freshConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            config = { ...config, ...freshConfig };
+        } catch (error) {
+            console.error('Errore ricaricamento config.json in open():', error);
+        }
+
+        const targetUrl = url || config.FASTWEB_DEFAULT_URL || DEFAULT_URL;
+
         // Reset dello stato di login su ogni nuova apertura/navigazione forzata
         this.setLoggedIn(false);
 
-        // Chiama la procedura modularizzata passando lo stato attuale
-        const result = await openProcedure(url, this.browser, this.page);
+        // Chiama la procedura modularizzata passando lo stato attuale e la config headless
+        const result = await openProcedure(targetUrl, this.browser, this.page, config.HEADLESS);
 
         // Se la procedura ha creato nuove istanze (browser non era già aperto),
         // aggiorna i riferimenti interni del singleton.

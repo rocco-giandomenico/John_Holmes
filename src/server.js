@@ -193,32 +193,25 @@ app.post('/pda-init', async (req, res) => {
 
 /**
  * Endpoint per avviare l'inserimento PDA come Job.
- * Body: { "data": {...} } (Opzionale, altrimenti usa pda_data.json)
+ * Body: { "data": {...} } (Opzionale, altrimenti usa pda_sequence.json)
  */
 app.post('/insert-pda', async (req, res) => {
     try {
         let data = req.body.data || req.body; // Accetta sia {data: {actions}} che direttamente {actions}
 
         if (!data || !data.actions) {
-            // Se non ci sono azioni nel body, proviamo a caricare un file di default (se esiste un pda_sequence.json)
-            // o restituiamo un errore spiegando il nuovo formato.
-            const pdaSequencePath = path.join(__dirname, '..', 'stuff', 'pda_sequence.json');
-            if (fs.existsSync(pdaSequencePath)) {
-                data = JSON.parse(fs.readFileSync(pdaSequencePath, 'utf8'));
-            } else {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Formato non valido. Invia un JSON con un array di "actions".',
-                    example: {
-                        pdaId: "mio-id-personalizzato",
-                        actions: [
-                            { type: "open_accordion", name: "Dati Anagrafici" },
-                            { type: "fill", locator: "input...", value: "valore" },
-                            { type: "wait", value: 2000 }
-                        ]
-                    }
-                });
-            }
+            return res.status(400).json({
+                success: false,
+                error: 'Formato non valido. Invia un JSON con un array di "actions".',
+                example: {
+                    pdaId: "mio-id-personalizzato",
+                    actions: [
+                        { type: "open_accordion", name: "Dati Anagrafici" },
+                        { type: "fill", locator: "input...", value: "valore" },
+                        { type: "wait", value: 2000 }
+                    ]
+                }
+            });
         }
 
         const pdaIdReq = req.body.pdaId;

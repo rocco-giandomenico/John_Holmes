@@ -7,9 +7,10 @@ const { chromium } = require('playwright');
  * @param {string} url - L'URL di destinazione.
  * @param {import('playwright').Browser|null} existingBrowser - L'istanza esistente del browser, se presente.
  * @param {import('playwright').Page|null} existingPage - L'istanza esistente della pagina, se presente.
+ * @param {boolean} [headless=false] - Modalità headless.
  * @returns {Promise<{browser?: import('playwright').Browser, context?: import('playwright').BrowserContext, page?: import('playwright').Page, url: string}>}
  */
-async function open(url, existingBrowser, existingPage) {
+async function open(url, existingBrowser, existingPage, headless = false) {
     // Se il browser è già aperto, naviga semplicemente all'URL richiesto
     if (existingBrowser && existingPage) {
         console.log(`Browser già aperto. Navigazione a ${url}...`);
@@ -18,9 +19,9 @@ async function open(url, existingBrowser, existingPage) {
     }
 
     // Altrimenti, avvia una nuova istanza di Chromium
-    console.log('Avvio del browser...');
+    console.log(`Avvio del browser (Headless: ${headless})...`);
     const browser = await chromium.launch({
-        headless: false, // Apre il browser in modalità visibile
+        headless: !!headless, // Usa la configurazione passata
         args: ['--start-maximized'] // Avvia la finestra massimizzata
     });
 

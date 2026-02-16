@@ -6,7 +6,7 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 ## Changes
 
 ### 1. Concurrent Session Detection
-- **File**: `psrc/browserManager.js`
+- **File**: `src/browserManager.js`
 - **Change**: Updated `login` method to prioritize checking for `sparkID=ConcurrentSessions` in the URL.
 - **Reason**: The previous logic incorrectly identified a concurrent session redirect as a success because the URL contained "GlobalSearch" (as a return URL parameter).
 - **Outcome**: The system now correctly returns `{ success: false, error: 'Concurrent Session Detected' }` when a concurrent session encounter occurs.
@@ -31,6 +31,11 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - **Change**: Added `POST /page-screenshot` endpoint.
 - **Functionality**: Returns a base64 encoded screenshot of the current page.
 - **Usage**: Useful for remote debugging and visual verification of the automation state.
+### 6. New Page Code Endpoint
+- **File**: `src/server.js`, `src/procedures/getPageCode.js`
+- **Change**: Added `POST /page-code` endpoint.
+- **Functionality**: Returns the full HTML content of the current page.
+- **Usage**: Useful for deep inspection and debugging of the page structure.
 
 ### 7. Sequential Action System & PDA Insertion
 - **File**: `src/browserManager.js`, `src/server.js`, `src/procedures/insertPDA.js`
@@ -42,21 +47,13 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
   - Real-time progress monitoring via `pdaId`.
   - Custom `pdaId` support: Users can provide their own ID for tracking.
   - Conflict Handling: Returns 409 if a job with the same `pdaId` is already running.
+### 8. Configurable Headless Mode
+- **File**: `config.json`, `src/browserManager.js`, `src/procedures/open.js`
+- **Change**: Added `HEADLESS` option to `config.json` and updated the launch logic to respect it.
+- **Feature**: The browser now reloads `config.json` on every `open()` call, allowing users to toggle headless mode without restarting the server.
+- **Verification**: Verified via `test/verify_launch_config.js`.
 
-
-
-
-
-
-
-
-
-## Verification
-
-### Automated Tests
-- **Script**: `test/debug_login.js`
-- **Result**: Confirmed that the script returns `success: false` and the correct error message when a concurrent session is simulated/encountered.
 
 ### Manual Verification
 - Verified that `README.md` accurately reflects the new API behavior.
-
+- Tested `POST /page-screenshot` and `POST /page-code` via Postman.
