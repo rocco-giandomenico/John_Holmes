@@ -3,6 +3,7 @@ const { fillAutocomplete } = require('../tools/fillAutocompleteTool');
 const { checkRadioButton } = require('../tools/radioTool');
 const { selectOption } = require('../tools/selectOptionTool');
 const { setAccordionState } = require('../tools/accordionTool');
+const { clickElement } = require('../tools/clickTool');
 
 // Import predefined procedures
 const initPDAProcedure = require('./initPDA');
@@ -41,36 +42,49 @@ async function executeJob(page, data, updateStatus) {
         await updateStatus(progress, actionDesc);
 
         try {
+            let success = true;
+            let result;
+
             switch (action.type) {
                 case 'procedure':
                     if (action.name === 'initPDA') {
-                        await initPDAProcedure(page);
+                        result = await initPDAProcedure(page);
+                        success = result.success;
+                        if (!success) actionDesc += ` (Failed: ${result.message})`;
                     } else {
                         console.warn(`Procedura non riconosciuta: ${action.name}`);
+                        success = false;
+                        actionDesc += ` (Procedura non riconosciuta)`;
                     }
                     break;
                 case 'open_accordion':
                 case 'close_accordion':
                     const state = action.type === 'open_accordion' ? 'open' : 'close';
                     const selector = action.name || action.value || action.locator;
+                    // setAccordionState non restituisce un boolean ma lancia errore se withRetry fallisce
                     await setAccordionState(page, selector, state);
                     break;
                 case 'fill':
                 case 'text':
-                    await fillInput(page, action.locator, action.value);
+                    result = await fillInput(page, action.locator, action.value);
+                    success = result.success;
                     break;
                 case 'autocomplete':
-                    await fillAutocomplete(page, action.locator, action.value);
+                    result = await fillAutocomplete(page, action.locator, action.value);
+                    success = result.success;
                     break;
                 case 'radio':
-                    await checkRadioButton(page, action.locator);
+                    result = await checkRadioButton(page, action.locator);
+                    success = result.success;
                     break;
                 case 'select':
-                    await selectOption(page, action.locator, action.value);
+                    result = await selectOption(page, action.locator, action.value);
+                    success = result.success;
                     break;
                 case 'click':
                 case 'button':
-                    await page.locator(action.locator).click();
+                    result = await clickElement(page, action.locator);
+                    success = result.success;
                     break;
                 case 'wait':
                     const ms = parseInt(action.value || action.ms || 1000);
@@ -78,10 +92,17 @@ async function executeJob(page, data, updateStatus) {
                     break;
                 default:
                     console.warn(`Tipo azione non supportato: ${action.type}`);
+                    success = false;
             }
+
+            if (!success) {
+                const toolError = result?.error || result?.message || 'Il tool ha restituito fallimento.';
+                throw new Error(toolError);
+            }
+
         } catch (err) {
             console.error(`Errore durante l'azione ${i + 1} (${action.type}): ${err.message}`);
-            // In una sequenza, spesso è meglio fermarsi se un'azione fallisce
+            // Interrompiamo immediatamente l'esecuzione del job
             throw new Error(`Fallimento azione ${i + 1} (${actionDesc}): ${err.message}`);
         }
 

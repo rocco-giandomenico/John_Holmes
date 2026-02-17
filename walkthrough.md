@@ -123,6 +123,14 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
   - PDA Initialization (`/pda-init`)
 - **Outcome**: Prevents race conditions where multiple requests could try to control the browser simultaneously. Returns `409 Conflict` if busy, unless `force: true` is provided.
 
+### 22. Centralized Error Handling & Improved Logging
+- **File**: `src/server.js`, `src/browserManager.js`
+- **Change**: 
+  - Added `sendErrorResponse` in `server.js` to standardize API error responses and handle `409 Conflict` (BUSY) automatically.
+  - Enhanced `_logJobResult` in `browserManager.js` to save more detailed and structured data (ID, Type, Status, Duration, Error Details) to `logs/jobs.log`.
+- **Reason**: To reduce code duplication, improve maintainability, and provide better observability for background tasks.
+- **Outcome**: A cleaner, more consistent API and more informative logs for debugging.
+
 ## Verification
 
 ### Automated Tests

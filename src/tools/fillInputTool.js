@@ -8,9 +8,11 @@ const configLoader = require('../utils/configLoader');
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {string} locator - Il selettore del campo di input.
  * @param {string|number} value - Il valore da inserire.
- * @returns {Promise<boolean>} - True se l'operazione è riuscita.
+ * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
 async function fillInput(page, locator, value) {
+    let lastErrorMessage = null;
+
     try {
         await withRetry(async () => {
             const input = page.locator(locator);
@@ -22,14 +24,17 @@ async function fillInput(page, locator, value) {
             await input.fill(value.toString());
             console.log(`Valore '${value}' inserito nel campo: ${locator}`);
 
-            // Attesa overlay post-inserimento
-            await waitForOverlay(page);
-        }, configLoader.get('TOOLS_RETRY', 2), 1000); // Usa config o default 2
+            // Attesa overlay post-inserimento (con controllo popup)
+            await waitForOverlay(page, 30000, true);
+        }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
-        return true;
+        return { success: true };
     } catch (error) {
-        console.error(`Fallimento definitivo dopo i tentativi per (${locator}):`, error.message);
-        return false;
+        if (error.message.includes('POPUP_DETECTED')) {
+            throw error; // Rilancia per interruzione immediata
+        }
+        console.error(`Fallimento definitivo per (${locator}):`, error.message);
+        return { success: false, error: error.message };
     }
 }
 

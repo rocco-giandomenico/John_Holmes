@@ -1,3 +1,4 @@
+const { waitForOverlay } = require('./waitForOverlayTool');
 const { withRetry } = require('./retryTool');
 const configLoader = require('../utils/configLoader');
 
@@ -30,6 +31,9 @@ async function setAccordionState(page, locator, targetState = 'open') {
         } else {
             console.log(`Accordion ${locator} già nello stato desiderato: ${targetState}`);
         }
+
+        // ATTESA OVERLAY + MODAL post-click
+        await waitForOverlay(page, 30000, true);
     }, retries, 1000);
 }
 

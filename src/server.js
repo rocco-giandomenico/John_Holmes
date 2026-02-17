@@ -8,6 +8,21 @@ const port = configLoader.get('PORT', 3000);
 app.use(express.json());
 
 /**
+ * Helper per gestire le risposte di errore standardizzate.
+ * Gestisce automaticamente il codice 409 se l'errore indica che il sistema è occupato.
+ */
+function sendErrorResponse(res, error, defaultStatus = 500) {
+    const message = error.message || error;
+    const isBusy = message.includes('BUSY') || message.includes('già in esecuzione');
+    const status = isBusy ? 409 : defaultStatus;
+
+    res.status(status).json({
+        success: false,
+        error: message
+    });
+}
+
+/**
  * Endpoint per aprire il browser.
  * Body: { "url": "string" }
  */
@@ -21,11 +36,7 @@ app.post('/open-browser', async (req, res) => {
             url: targetUrl
         });
     } catch (error) {
-        console.error('Errore durante l\'apertura del browser:', error);
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error, 400);
     }
 });
 
@@ -40,10 +51,7 @@ app.post('/login', async (req, res) => {
         const password = config.PASSWORD;
 
         if (!username || !password) {
-            return res.status(500).json({
-                success: false,
-                error: 'Credenziali (USERNAME/PASSWORD) mancanti in config.json.'
-            });
+            throw new Error('Credenziali (USERNAME/PASSWORD) mancanti in config.json.');
         }
 
         const force = req.body.force === true || req.body.force === 'true';
@@ -64,12 +72,7 @@ app.post('/login', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Errore durante il login:', error);
-        const isBusy = error.message.includes('BUSY');
-        res.status(isBusy ? 409 : 401).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error, 401);
     }
 });
 
@@ -84,12 +87,7 @@ app.post('/secure-logout', async (req, res) => {
         const result = await browserManager.logout(force);
         res.status(200).json(result);
     } catch (error) {
-        console.error('Errore durante il logout sicuro:', error);
-        const isBusy = error.message.includes('BUSY');
-        res.status(isBusy ? 409 : 500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 
@@ -116,11 +114,7 @@ app.post('/close-browser', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Errore durante la chiusura del browser:', error);
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error, 400);
     }
 });
 
@@ -135,11 +129,7 @@ app.post('/current-page', async (req, res) => {
             ...state
         });
     } catch (error) {
-        console.error('Errore durante il recupero dello stato della pagina:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 
@@ -163,10 +153,7 @@ app.post('/api/session-status', (req, res) => {
             message: `Stato sessione: ${isLoggedIn ? 'LOGGED IN' : 'LOGGED OUT'}`
         });
     } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error, 400);
     }
 });
 
@@ -184,12 +171,7 @@ app.post('/pda-init', async (req, res) => {
             res.status(500).json(result);
         }
     } catch (error) {
-        console.error('Errore durante initPDA:', error);
-        const isBusy = error.message.includes('BUSY');
-        res.status(isBusy ? 409 : 500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 
@@ -202,10 +184,7 @@ app.post('/execute-job', async (req, res) => {
         let data = req.body.data || req.body;
 
         if (!data || !data.actions) {
-            return res.status(400).json({
-                success: false,
-                error: 'Formato non valido. Invia un JSON con un array di "actions".'
-            });
+            throw new Error('Formato non valido. Invia un JSON con un array di "actions".');
         }
 
         const pdaIdReq = req.body.pdaId;
@@ -219,13 +198,7 @@ app.post('/execute-job', async (req, res) => {
             statusUrl: `/job-status/${pdaId}`
         });
     } catch (error) {
-        console.error('Errore durante avvio execute-job:', error);
-        // Restituisci 409 Conflict se il sistema è occupato o il job esiste già
-        const isBusy = error.message.includes('BUSY') || error.message.includes('già in esecuzione');
-        res.status(isBusy ? 409 : 500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 
@@ -277,11 +250,7 @@ app.post('/page-screenshot', async (req, res) => {
             message: 'Screenshot catturato con successo.'
         });
     } catch (error) {
-        console.error('Errore durante la cattura dello screenshot:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 
@@ -297,11 +266,7 @@ app.post('/page-code', async (req, res) => {
             message: 'Codice pagina recuperato con successo.'
         });
     } catch (error) {
-        console.error('Errore durante il recupero del codice pagina:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        sendErrorResponse(res, error);
     }
 });
 

@@ -22,14 +22,17 @@ async function selectOption(page, locator, value) {
             await select.selectOption(value);
             console.log(`Opzione '${value}' selezionata nel menu: ${locator}`);
 
-            // ATTESA OVERLAY post-selezione
-            await waitForOverlay(page);
+            // ATTESA OVERLAY + MODAL post-selezione
+            await waitForOverlay(page, 30000, true);
         }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
-        return true;
+        return { success: true };
     } catch (error) {
+        if (error.message.includes('POPUP_DETECTED')) {
+            throw error;
+        }
         console.error(`Fallimento definitivo dopo i tentativi per select (${locator}):`, error.message);
-        return false;
+        return { success: false, error: error.message };
     }
 }
 

@@ -317,7 +317,7 @@ class BrowserManager {
     }
 
     /**
-     * Salva il risultato di un job nel file di log.
+     * Salva il risultato di un job nel file di log con dettagli strutturati.
      * @param {string} pdaId 
      */
     _logJobResult(pdaId) {
@@ -327,12 +327,19 @@ class BrowserManager {
         try {
             const logEntry = {
                 timestamp: new Date().toISOString(),
-                ...job
+                pdaId: job.id,
+                type: job.type,
+                name: job.name,
+                status: job.status,
+                duration: job.endTime ? (new Date(job.endTime) - new Date(job.startTime)) / 1000 + 's' : 'N/A',
+                error: job.error || null,
+                result: job.result || null
             };
+
             fs.appendFileSync(JOBS_LOG_PATH, JSON.stringify(logEntry) + '\n');
-            console.log(`Risultato Job ${pdaId} salvato in ${JOBS_LOG_PATH}`);
+            console.log(`[LOG] Job ${pdaId} (${job.status}) salvato in ${JOBS_LOG_PATH}`);
         } catch (error) {
-            console.error('Errore durante il salvataggio del log:', error);
+            console.error('[LOG ERROR] Fallimento salvataggio log:', error);
         }
     }
 

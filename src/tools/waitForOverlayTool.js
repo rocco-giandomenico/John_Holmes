@@ -1,12 +1,11 @@
 /**
  * Attende che l'overlay di caricamento della pagina (#overlay) scompaia.
- * Questo tool è fondamentale dopo aver inserito P.IVA o cambiato selezioni che 
- * scatenano ricalcoli asincroni nel form Fastweb.
  * 
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {number} maxWaitTime - Tempo massimo di attesa totale in millisecondi (default 30s).
+ * @param {boolean} checkForPopup - Se true, verifica anche la presenza di popup bloccanti.
  */
-async function waitForOverlay(page, maxWaitTime = 30000) {
+async function waitForOverlay(page, maxWaitTime = 30000, checkForPopup = false) {
     const overlaySelector = '#overlay';
 
     try {
@@ -35,7 +34,23 @@ async function waitForOverlay(page, maxWaitTime = 30000) {
         } else {
             console.log('Nessun overlay rilevato, procedo.');
         }
+
+        // --- CONTROLLO POPUP DI BLOCCO (Solo se esplicitamente richiesto dai tool) ---
+        if (checkForPopup) {
+            const modal = page.locator('.modal-content');
+            const isModalVisible = await modal.isVisible().catch(() => false);
+
+            if (isModalVisible) {
+                const modalText = (await modal.innerText()).trim().replace(/\n/g, ' ');
+                console.warn(`[POPUP DETECTED] ${modalText}`);
+                // Interrompiamo immediatamente il job riportando il messaggio del popup
+                throw new Error(`POPUP_DETECTED: ${modalText}`);
+            }
+        }
     } catch (error) {
+        if (error.message.includes('POPUP_DETECTED')) {
+            throw error; // Rilancia per bloccare l'esecuzione
+        }
         console.warn('Timeout o errore durante l\'attesa dell\'overlay:', error.message);
     }
 }

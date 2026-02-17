@@ -63,15 +63,18 @@ async function fillAutocomplete(page, inputLocator, value, resultSelector = 'ul.
                 throw new Error(`Impossibile trovare match esatto per: ${value}`);
             }
 
-            // 5. Attesa finale per eventuali ricalcoli (overlay)
-            await waitForOverlay(page);
+            // 5. Attesa finale per eventuali ricalcoli (overlay + modal)
+            await waitForOverlay(page, 30000, true);
 
         }, configLoader.get('TOOLS_RETRY', 2), 1000); // Usa config o default 2
 
-        return true;
+        return { success: true };
     } catch (error) {
+        if (error.message.includes('POPUP_DETECTED')) {
+            throw error;
+        }
         console.error(`Errore Autocomplete per (${inputLocator}):`, error.message);
-        return false;
+        return { success: false, error: error.message };
     }
 }
 

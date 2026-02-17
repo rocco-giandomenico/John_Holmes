@@ -14,8 +14,15 @@ async function withRetry(fn, retries = 2, delay = 1000) {
             return await fn();
         } catch (error) {
             lastError = error;
+
+            // Se l'errore è un POPUP_DETECTED, interrompiamo immediatamente i retry
+            if (error.message.includes('POPUP_DETECTED')) {
+                console.warn(`[RETRY ABORT] Errore critico rilevato: ${error.message}. Interruzione tentativi.`);
+                throw error;
+            }
+
             if (i < retries) {
-                console.warn(`Tentativo ${i + 1} fallito. Riprovo tra ${delay}ms...`);
+                console.warn(`Tentativo ${i + 1} fallito. Riprovo tra ${delay}ms... (Errore: ${error.message})`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 // Aumentiamo il ritardo per il prossimo tentativo (exponential backoff)
                 delay *= 2;

@@ -23,18 +23,21 @@ async function checkRadioButton(page, locator) {
             if (!isAlreadyChecked) {
                 console.log(`Selezionando radio button: ${locator}`);
                 await radioButton.check({ force: true });
-
-                // ATTESA OVERLAY post-selezione
-                await waitForOverlay(page);
             } else {
                 console.log(`Radio button già selezionato: ${locator}`);
             }
+
+            // ATTESA OVERLAY + MODAL (Sempre, per catturare errori asincroni della pagina)
+            await waitForOverlay(page, 30000, true);
         }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
-        return true;
+        return { success: true };
     } catch (error) {
+        if (error.message.includes('POPUP_DETECTED')) {
+            throw error;
+        }
         console.error(`Fallimento definitivo dopo i tentativi per radio (${locator}):`, error.message);
-        return false;
+        return { success: false, error: error.message };
     }
 }
 

@@ -1,0 +1,118 @@
+{
+    "pdaId": "pda_draft_1",
+    "actions": [
+        {
+            "type": "procedure",
+            "name": "initPDA",
+            "description": "Inizializzazione pratica e reset accordion"
+        },
+        {
+            "type": "open_accordion",
+            "locator": "a.accordion-toggle:has-text(\"Dati Anagrafici\")",
+            "description": "Apertura sezione Dati Anagrafici"
+        },
+        {
+            "type": "open_accordion",
+            "locator": "a.accordion-toggle:has-text(\"Dati Fiscali\")",
+            "description": "Apertura sezione Dati Fiscali"
+        },
+        {
+            "type": "radio",
+            "locator": "input[name=\"section1_segmento\"][value=\"SHP\"]",
+            "description": "Selezione Segmento SHP"
+        },
+        {
+            "type": "radio",
+            "locator": "input[name=\"section1_tipologiaOfferta\"][value=\"FISSO\"]",
+            "description": "Selezione Tipologia offerta Fisso"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_ragioneSociale\"]",
+            "value": "SIO GREEN  DI ELISA E LARA DANIELE",
+            "description": "Inserimento Ragione sociale"
+        },
+        {
+            "type": "select",
+            "locator": "select[name=\"section1_formaGiuridica\"]",
+            "value": "s.n.c",
+            "description": "Selezione Forma Giuridica s.n.c"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_partitaIva\"]",
+            "value": "04193430289",
+            "description": "Inserimento Partita IVA"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_nomeReferente\"]",
+            "value": "LARA",
+            "description": "Inserimento Nome Rappresentante Legale"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_cognomeReferente\"]",
+            "value": "DANIELE",
+            "description": "Inserimento Cognome Rappresentante Legale"
+        },
+        {
+            "type": "radio",
+            "locator": "input[name=\"section1_sessoReferente\"][value=\"F\"]",
+            "description": "Selezione Sesso Rappresentante Legale F"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_dataDiNascitaReferente\"]",
+            "value": "24/05/1981",
+            "description": "Inserimento Data Di Nascita Rappresentante Legale"
+        },
+        {
+            "type": "radio",
+            "locator": "input[name=\"section1_natoAllEstero\"][value=\"false\"]",
+            "description": "Selezione Nato all'estero NO"
+        },
+        {
+            "type": "autocomplete",
+            "locator": "input[name=\"section1_statoDiNascitaReferente\"]",
+            "value": "ITALIA",
+            "description": "Inserimento Stato di Nascita Rappresentante Legale"
+        },
+        {
+            "type": "autocomplete",
+            "locator": "input[name=\"section1_comuneDiNascitaReferente\"]",
+            "value": "PADOVA",
+            "description": "Inserimento Comune di Nascita Rappresentante Legale"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_codiceFiscaleReferente\"]",
+            "value": "DNLLRA81E64G224A",
+            "description": "Inserimento Codice Fiscale Rappresentante Legale"
+        },
+        {
+            "type": "click",
+            "locator": "button.btn.btn-primary[ng-click*=\"verificaCodiceFiscale('section1'\"]",
+            "validationLocator": "input[name=\"section1_codiceFiscaleReferente\"]",
+            "description": "Verifica Codice Fiscale"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_numeroMobileDiRiferimento\"]",
+            "value": "3491097091",
+            "description": "Inserimento Numerazione Mobile Rappresentante Legale"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_email\"]",
+            "value": "SIOGIARDINI@LIBERO.IT",
+            "description": "Inserimento Email Rappresentante Legale"
+        },
+        {
+            "type": "fill",
+            "locator": "input[name=\"section1_emailConferma\"]",
+            "value": "SIOGIARDINI@LIBERO.IT",
+            "description": "Conferma Email Rappresentante Legale"
+        }
+    ]
+}
