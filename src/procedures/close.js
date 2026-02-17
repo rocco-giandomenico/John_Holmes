@@ -9,7 +9,8 @@
  */
 async function close(browser, force, isLoggedIn) {
     if (!browser) {
-        throw new Error('No browser is currently open.');
+        console.log('Chiamata close ignorata: nessun browser aperto.');
+        return 'closed';
     }
 
     // Se non è forzato e l'utente è loggato, manteniamo il browser aperto

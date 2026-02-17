@@ -36,6 +36,7 @@ class BrowserManager {
         this.context = null;
         this.page = null;
         this.jobs = {}; // Mantiene lo stato dei job in background
+        this._isJobRunning = false; // Global Lock
     }
 
     /**
@@ -44,14 +45,23 @@ class BrowserManager {
      * @param {Function} taskFn - Funzione async che esegue il lavoro.
      * @param {string} [customId] - ID opzionale (pdaId) fornito dall'utente.
      * @param {string} [name] - Nome descrittivo del job per supervisione umana.
+     * @param {boolean} [force=false] - Se true, ignora il lock globale.
      * @returns {string} pdaId creato.
      */
-    startJob(type, taskFn, customId, name) {
+    startJob(type, taskFn, customId, name, force = false) {
+        // Global Lock Check
+        if (this._isJobRunning && !force) {
+            throw new Error(`BUSY: Un altro job è attualmente in esecuzione. Usa 'force: true' per forzare.`);
+        }
+
         let pdaId = customId || `${type}_${Date.now()}`;
 
         if (this.jobs[pdaId] && this.jobs[pdaId].status === 'running') {
             throw new Error(`Un job con ID '${pdaId}' è già in esecuzione.`);
         }
+
+        // Acquire lock
+        this._isJobRunning = true;
 
         this.jobs[pdaId] = {
             id: pdaId,
@@ -76,6 +86,9 @@ class BrowserManager {
             console.error(`Job ${pdaId} fallito:`, error);
             this.updateJob(pdaId, { status: 'failed', error: error.message, endTime: new Date().toISOString() });
             this._logJobResult(pdaId); // Salva su file
+        }).finally(() => {
+            // Release lock
+            this._isJobRunning = false;
         });
 
         return pdaId;
@@ -130,60 +143,94 @@ class BrowserManager {
      * 
      * @param {string} username - Credenziali utente.
      * @param {string} password - Credenziali utente.
+     * @param {boolean} [force=false] - Se true, ignora il lock globale.
      * @returns {Promise<Object>} Risultato dell'operazione di login.
      */
-    async login(username, password) {
+    async login(username, password, force = false) {
+        if (this._isJobRunning && !force) {
+            throw new Error(`BUSY: Un job è in esecuzione. Impossibile eseguire login. Usa 'force: true'.`);
+        }
+
         if (!this.page) {
             await this.open();
         }
-        // Delega la logica alla procedura esterna, passando il contesto della pagina e la callback di stato
-        return await loginProcedure(this.page, username, password, this.setLoggedIn.bind(this));
+
+        try {
+            this._isJobRunning = true;
+            // Delega la logica alla procedura esterna, passando il contesto della pagina e la callback di stato
+            return await loginProcedure(this.page, username, password, this.setLoggedIn.bind(this));
+        } finally {
+            this._isJobRunning = false;
+        }
     }
 
     /**
      * Esegue il logout sicuro dal portale Fastweb.
      * Naviga verso SalesForce e clicca sul pulsante 'Esci'.
      * 
+     * @param {boolean} [force=false] - Se true, ignora il lock globale.
      * @returns {Promise<Object>} Esito dell'operazione.
      * @throws {Error} Se non c'è una pagina attiva su cui operare.
      */
-    async logout() {
+    async logout(force = false) {
+        if (this._isJobRunning && !force) {
+            throw new Error(`BUSY: Un job è in esecuzione. Impossibile eseguire logout. Usa 'force: true'.`);
+        }
+
         if (!this.page) {
             throw new Error('No active page to logout from.');
         }
-        // Delega la logica alla procedura esterna
-        return await logoutProcedure(this.page, this.setLoggedIn.bind(this));
+
+        try {
+            this._isJobRunning = true;
+            // Delega la logica alla procedura esterna
+            return await logoutProcedure(this.page, this.setLoggedIn.bind(this));
+        } finally {
+            this._isJobRunning = false;
+        }
     }
 
     /**
      * Inizializza una nuova Proposta di Abbonamento (PDA).
      * Naviga verso la procedura di inserimento ordine e seleziona il codice prodotto.
      * 
+     * @param {boolean} [force=false] - Se true, ignora il lock globale.
      * @returns {Promise<Object>} Esito dell'operazione e URL raggiunto.
      * @throws {Error} Se il browser non è aperto o l'utente non è loggato.
      */
-    async initPDA() {
+    async initPDA(force = false) {
+        if (this._isJobRunning && !force) {
+            throw new Error(`BUSY: Un job è in esecuzione. Impossibile inizializzare PDA. Usa 'force: true'.`);
+        }
+
         if (!this.page) {
             throw new Error('Browser not open or page not available. Please login first.');
         }
-        // Delega la logica alla procedura esterna
-        return await initPDAProcedure(this.page);
+
+        try {
+            this._isJobRunning = true;
+            // Delega la logica alla procedura esterna
+            return await initPDAProcedure(this.page);
+        } finally {
+            this._isJobRunning = false;
+        }
     }
 
     /**
      * Avvia il job di esecuzione sequenza azioni (es. inserimento dati PDA).
      * @param {Object} data - Dati e azioni da eseguire.
      * @param {string} [pdaId] - ID personalizzato.
+     * @param {boolean} [force=false] - Se true, forza l'esecuzione.
      * @returns {string} pdaId.
      */
-    async executeJob(data, pdaId) {
+    async executeJob(data, pdaId, force = false) {
         if (!this.page) {
             throw new Error('Browser not open or page not available.');
         }
 
         return this.startJob('execute-job', async (id, updateStatus) => {
             return await executeJobProcedure(this.page, data, updateStatus);
-        }, pdaId, data.name);
+        }, pdaId, data.name, force);
     }
 
     /**

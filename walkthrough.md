@@ -114,6 +114,15 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - **Change**: Wrapped the logout sequence (GlobalSearch navigation -> Menu Click -> Logout Click) in a `withRetry` block.
 - **Outcome**: Increased reliability of the session termination process, ensuring that the browser state and session are correctly cleaned up even if the portal UI is laggy.
 
+### 21. Global Job Lock
+- **File**: `browserManager.js`, `server.js`
+- **Change**: Implemented a global locking mechanism (`_isJobRunning`) that prevents concurrent execution of:
+  - Jobs (`execute-job`)
+  - Login (`/login`)
+  - Logout (`/secure-logout`)
+  - PDA Initialization (`/pda-init`)
+- **Outcome**: Prevents race conditions where multiple requests could try to control the browser simultaneously. Returns `409 Conflict` if busy, unless `force: true` is provided.
+
 ## Verification
 
 ### Automated Tests

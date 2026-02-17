@@ -133,7 +133,17 @@ Tool di basso livello usato da tutti gli altri.
 - **Uso**: `await waitForOverlay(page)`
 - **Funzione**: Monitora il DOM per l'elemento `#overlay`. Se appare, blocca l'esecuzione finché non sparisce.
 
----
+#### 6. `waitForOverlayTool.js`
+Tool di basso livello usato da tutti gli altri.
+- **Uso**: `await waitForOverlay(page)`
+- **Funzione**: Monitora il DOM per l'elemento `#overlay`. Se appare, blocca l'esecuzione finché non sparisce.
+
+### 🛡️ Global Job Lock
+Per garantire la sicurezza e la consistenza dei dati, il sistema implementa un **Global Job Lock**.
+- **Comportamento**: Quando un job è in esecuzione (o una procedura critica come login/logout/initPDA), il browser viene "bloccato".
+- **Conflitti**: Qualsiasi tentativo di avviare un altro job o procedura riceverà un errore **409 Conflict** (`BUSY`).
+- **Override**: È possibile forzare l'esecuzione passando `"force": true` nel body della richiesta JSON.
+
 
 ## Procedure
 
@@ -172,10 +182,13 @@ Il server espone i seguenti endpoint POST:
 ### 2. Login
 - **URL**: `/login`
 - **Metodo**: POST
+- **Body Opzionale**: `{ "force": true }` (per forzare il login se il sistema è BUSY)
 - **Nota**: Le credenziali (`USERNAME` e `PASSWORD`) vengono lette **esclusivamente** da `config.json`. Eventuali parametri inviati nel body verranno ignorati.
 
 ### 3. Logout Sicuro
 - **URL**: `/secure-logout`
+- **Metodo**: POST
+- **Body Opzionale**: `{ "force": true }`
 
 ### 4. Stato Pagina
 - **URL**: `/current-page`
@@ -189,6 +202,9 @@ Il server espone i seguenti endpoint POST:
 
 ### 7. Inizializza PDA
 - **URL**: `/pda-init`
+- **Metodo**: POST
+- **Body Opzionale**: `{ "force": true }`
+- **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
 - **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
 
 ### 8. Esecuzione Job (Sequenza Async)
@@ -197,6 +213,7 @@ Il server espone i seguenti endpoint POST:
   ```json
   {
     "pdaId": "id-univoco-job",
+    "force": false, 
     "actions": [
       { "type": "open_accordion", "name": "Dati Anagrafici" },
       { "type": "fill", "locator": "input[name='...']", "value": "John" },
@@ -218,7 +235,7 @@ Il server espone i seguenti endpoint POST:
   | `wait` | Attesa in millisecondi | `value` (o `ms`) |
 
 - **Descrizione**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
-- **Note**: Tra un'operazione e l'altra viene inserita automaticamente un'attesa di **1 secondo** per garantire la stabilità. È possibile passare un `pdaId` personalizzato; se già in esecuzione, restituirà errore 409.
+- **Note**: Tra un'operazione e l'altra viene inserita automaticamente un'attesa di **1 secondo** per garantire la stabilità. È possibile passare un `pdaId` personalizzato; se già in esecuzione, restituirà errore 409. Usa `"force": true` per ignorare il lock globale.
 
 ### 9. Stato Job (POST)
 - **URL**: `/job-status`
@@ -244,4 +261,6 @@ Il server espone i seguenti endpoint POST:
 
 - **Singleton Browser**: Gestito da `browserManager.js`.
 - **Session State**: Persistito in `session_state.json`.
-- **Config**: `config.json` (include l'opzione `"HEADLESS": true/false`).
+- **Singleton Browser**: Gestito da `browserManager.js`.
+- **Session State**: Persistito in `session_state.json`.
+- **Config**: `config.json` (include le opzioni `"HEADLESS": true/false`, `"TOOLS_RETRY": n`).

@@ -46,7 +46,8 @@ app.post('/login', async (req, res) => {
             });
         }
 
-        const result = await browserManager.login(username, password);
+        const force = req.body.force === true || req.body.force === 'true';
+        const result = await browserManager.login(username, password, force);
 
         if (result.success) {
             res.status(200).json({
@@ -64,7 +65,8 @@ app.post('/login', async (req, res) => {
         }
     } catch (error) {
         console.error('Errore durante il login:', error);
-        res.status(401).json({
+        const isBusy = error.message.includes('BUSY');
+        res.status(isBusy ? 409 : 401).json({
             success: false,
             error: error.message
         });
@@ -74,14 +76,17 @@ app.post('/login', async (req, res) => {
 /**
  * Endpoint per il logout sicuro.
  * Naviga verso GlobalSearch e clicca su "Esci".
+ * Body: { "force": boolean }
  */
 app.post('/secure-logout', async (req, res) => {
     try {
-        const result = await browserManager.logout();
+        const force = req.body.force === true || req.body.force === 'true';
+        const result = await browserManager.logout(force);
         res.status(200).json(result);
     } catch (error) {
         console.error('Errore durante il logout sicuro:', error);
-        res.status(500).json({
+        const isBusy = error.message.includes('BUSY');
+        res.status(isBusy ? 409 : 500).json({
             success: false,
             error: error.message
         });
@@ -167,10 +172,12 @@ app.post('/api/session-status', (req, res) => {
 
 /**
  * Endpoint per inizializzare la procedura PDA (Inserimento Ordine).
+ * Body: { "force": boolean }
  */
 app.post('/pda-init', async (req, res) => {
     try {
-        const result = await browserManager.initPDA();
+        const force = req.body.force === true || req.body.force === 'true';
+        const result = await browserManager.initPDA(force);
         if (result.success) {
             res.status(200).json(result);
         } else {
@@ -178,7 +185,8 @@ app.post('/pda-init', async (req, res) => {
         }
     } catch (error) {
         console.error('Errore durante initPDA:', error);
-        res.status(500).json({
+        const isBusy = error.message.includes('BUSY');
+        res.status(isBusy ? 409 : 500).json({
             success: false,
             error: error.message
         });
@@ -201,7 +209,9 @@ app.post('/execute-job', async (req, res) => {
         }
 
         const pdaIdReq = req.body.pdaId;
-        const pdaId = await browserManager.executeJob(data, pdaIdReq);
+        const force = req.body.force === true || req.body.force === 'true';
+
+        const pdaId = await browserManager.executeJob(data, pdaIdReq, force);
         res.status(202).json({
             success: true,
             pdaId: pdaId,
@@ -210,7 +220,9 @@ app.post('/execute-job', async (req, res) => {
         });
     } catch (error) {
         console.error('Errore durante avvio execute-job:', error);
-        res.status(error.message.includes('già in esecuzione') ? 409 : 500).json({
+        // Restituisci 409 Conflict se il sistema è occupato o il job esiste già
+        const isBusy = error.message.includes('BUSY') || error.message.includes('già in esecuzione');
+        res.status(isBusy ? 409 : 500).json({
             success: false,
             error: error.message
         });
