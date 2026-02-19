@@ -37,6 +37,7 @@ class BrowserManager {
         this.page = null;
         this.jobs = {}; // Mantiene lo stato dei job in background
         this._isJobRunning = false; // Global Lock
+        this.currentLogPath = JOBS_LOG_PATH; // Default log path
     }
 
     /**
@@ -122,6 +123,13 @@ class BrowserManager {
         // Reset dello stato (Jobs e Sessione) su ogni nuova apertura/navigazione forzata
         this.jobs = {};
         this.setLoggedIn(false);
+
+        // Generazione del nome file log per questa sessione
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        this.currentLogPath = path.join(LOGS_DIR, `jobs_${timestamp}.log`);
+
+        console.log(`[INFO] Nuova sessione browser. Log attivi su: ${this.currentLogPath}`);
+
 
         // Chiama la procedura modularizzata passando lo stato attuale e la config headless
         const result = await openProcedure(targetUrl, this.browser, this.page, config.HEADLESS);
@@ -336,8 +344,8 @@ class BrowserManager {
                 result: job.result || null
             };
 
-            fs.appendFileSync(JOBS_LOG_PATH, JSON.stringify(logEntry) + '\n');
-            console.log(`[LOG] Job ${pdaId} (${job.status}) salvato in ${JOBS_LOG_PATH}`);
+            fs.appendFileSync(this.currentLogPath, JSON.stringify(logEntry) + '\n');
+            console.log(`[LOG] Job ${pdaId} (${job.status}) salvato in ${this.currentLogPath}`);
         } catch (error) {
             console.error('[LOG ERROR] Fallimento salvataggio log:', error);
         }
