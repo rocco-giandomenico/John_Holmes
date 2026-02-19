@@ -8,8 +8,7 @@ Questo progetto è un sistema di automazione avanzato basato su **Playwright** e
 3. [Architettura](#architettura)
 4. [Tool di Automazione (Core)](#tool-di-automazione)
 5. [Procedure](#procedure)
-6. [Mappatura Locatori](#mappatura-locatori)
-7. [API Reference](#api-reference)
+6. [API Reference](#api-reference)
 
 ---
 
@@ -39,7 +38,7 @@ Il progetto è strutturato in moduli:
 - **`src/server.js`**: Entry point Express.js.
 - **`src/browserManager.js`**: Singleton che gestisce l'istanza del browser Chromium.
 - **`src/tools/`**: Libreria di funzioni atomiche per interagire con la pagina (click, fill, wait).
-- **`src/procedures/`**: Script complessi che orchestrano più tool per completare task (es. Login, Init PDA).
+- **`src/procedures/`**: Script complessi che orchestrano più tool per completare task (es. Login, Init PDA, Execute Job).
 
 ### Schema di Flusso
 ```mermaid
@@ -56,7 +55,7 @@ flowchart TB
         Jobs["Jobs Repository (RAM)"]
   end
  subgraph subGraph2["Procedures (Workflow)"]
-        PDA["insertPDA.js (Sequential)"]
+        JobExec["executeJob.js (Sequential)"]
         Login["login.js"]
         Init["initPDA.js"]
   end
@@ -70,12 +69,12 @@ flowchart TB
  subgraph subGraph4["Playwright Engine"]
         Browser["Chromium Instance"]
   end
-    Client["Client (Postman/Script)"] -- "POST /insert-pda" --> Server
-    Server -- insertPDA(data, pdaId) --> BM
+    Client["Client (Postman/Script)"] -- "POST /execute-job" --> Server
+    Server -- executeJob(data, pdaId) --> BM
     BM -- startJob() --> Jobs
-    BM -- Execute --> PDA["executeJob.js (Sequential)"]
-    PDA -- 1s delay between --> PDA
-    PDA -- Uses --> Accordion & Fill & Autocomplete & Radio
+    BM -- Execute --> JobExec
+    JobExec -- 1s delay between --> JobExec
+    JobExec -- Uses --> Accordion & Fill & Autocomplete & Radio
     Accordion -- Wait for --> Overlay
     Fill -- Wait for --> Overlay
     Autocomplete -- Wait for --> Overlay
@@ -85,7 +84,7 @@ flowchart TB
     Autocomplete -- Commands --> Browser
     Radio -- Commands --> Browser
     Browser -- Automation --> Fastweb["Portale Fastweb/Salesforce"]
-    Client -- "GET /job-status/:id" --> Server
+    Client -- "POST /job-status" --> Server
     Server -- getJobStatus() --> BM
     BM -- Read --> Jobs
 ```
@@ -98,7 +97,7 @@ Questi tool si trovano in `src/tools/` e sono progettati per essere **resilienti
 
 ### 🛡️ Filosofia "Resiliente"
 Tutti i tool di interazione (`fill`, `click`, `select`) implementano:
-1.  **Retry Automatico**: Se un'azione fallisce (es. elemento non cliccacbile), il sistema riprova fino a 3 volte con backoff esponenziale.
+1.  **Retry Automatico**: Se un'azione fallisce (es. elemento non cliccabile), il sistema riprova fino a `TOOLS_RETRY` volte (configurabile in `config.json`) con backoff esponenziale.
 2.  **Overlay Detection**: Dopo ogni azione, il tool controlla automaticamente se la pagina ha attivato un caricamento (`#overlay` di Fastweb) e attende che finisca prima di restituire il controllo.
 
 ### Lista Tool Principali
@@ -133,17 +132,7 @@ Tool di basso livello usato da tutti gli altri.
 - **Uso**: `await waitForOverlay(page)`
 - **Funzione**: Monitora il DOM per l'elemento `#overlay`. Se appare, blocca l'esecuzione finché non sparisce.
 
-#### 6. `waitForOverlayTool.js`
-Tool di basso livello usato da tutti gli altri.
-- **Uso**: `await waitForOverlay(page)`
-- **Funzione**: Monitora il DOM per l'elemento `#overlay`. Se appare, blocca l'esecuzione finché non sparisce.
-
-### 🛡️ Global Job Lock
-Per garantire la sicurezza e la consistenza dei dati, il sistema implementa un **Global Job Lock**.
-- **Comportamento**: Quando un job è in esecuzione (o una procedura critica come login/logout/initPDA), il browser viene "bloccato".
-- **Conflitti**: Qualsiasi tentativo di avviare un altro job o procedura riceverà un errore **409 Conflict** (`BUSY`).
-- **Override**: È possibile forzare l'esecuzione passando `"force": true` nel body della richiesta JSON.
-
+---
 
 ## Procedure
 
@@ -155,112 +144,56 @@ Inizializza una nuova pratica.
 2.  Clicca "Inserisci Ordine".
 3.  Seleziona Prodotto "IS.0228.0601NA".
 4.  Attende URL "CPQOrder".
-5.  **Reset Accordion**: Chiude forzatamente tutti i pannelli per garantire uno stato pulito. Fallisce se non riesce.
+5.  **Reset Accordion**: Chiude forzatamente tutti i pannelli per garantire uno stato pulito.
 
----
-
-## Struttura Sequenze (Job)
-
-Le sequenze di azioni per l'esecuzione di un job devono essere inviate nel body della richiesta POST.
-Ogni azione nella lista `actions` può contenere:
-- **`type`**: Il tipo di operazione (`text`, `radio`, `select`, `open_accordion`, etc.).
-- **`locator`**: Selettore CSS dell'elemento.
-- **`value`**: Valore da inserire o selezionare.
-- **`name`**: Usato per gli accordion (testo del pannello).
-- **`description`**: Testo opzionale per il log del progresso.
+### 🛡️ Global Job Lock
+Per garantire la sicurezza e la consistenza dei dati, il sistema implementa un **Global Job Lock**.
+- **Comportamento**: Quando un job è in esecuzione (o una procedura critica come login/logout/initPDA), il browser viene "bloccato".
+- **Conflitti**: Qualsiasi tentativo di avviare un altro job o procedura riceverà un errore **409 Conflict** (`BUSY`).
+- **Override**: È possibile forzare l'esecuzione passando `"force": true` nel body della richiesta JSON.
 
 ---
 
 ## API Reference
 
-Il server espone i seguenti endpoint POST:
+Il server espone i seguenti endpoint **POST** per garantire coerenza e sicurezza:
 
-### 1. Apri Browser
-- **URL**: `/open-browser`
-- **Body**: `{ "url": "..." }`
+### 1. Gestione Browser
+- **`/open-browser`**: Apre il browser e naviga all'URL specificato (`{ "url": "..." }`).
+- **`/close-browser`**: Chiude il browser. Supporta `{ "force": true }` per chiudere anche sessioni attive.
 
-### 2. Login
-- **URL**: `/login`
-- **Metodo**: POST
-- **Body Opzionale**: `{ "force": true }` (per forzare il login se il sistema è BUSY)
-- **Nota**: Le credenziali (`USERNAME` e `PASSWORD`) vengono lette **esclusivamente** da `config.json`. Eventuali parametri inviati nel body verranno ignorati.
+### 2. Sessione e Login
+- **`/login`**: Effettua il login usando le credenziali in `config.json`. Supporta `{ "force": true }`.
+- **`/secure-logout`**: Esegue il logout sicuro navigando su Global Search e cliccando "Esci".
+- **`/api/session-status`**: Restituisce o imposta lo stato della sessione (`{ "logged": boolean }`).
 
-### 3. Logout Sicuro
-- **URL**: `/secure-logout`
-- **Metodo**: POST
-- **Body Opzionale**: `{ "force": true }`
+### 3. Procedure PDA
+- **`/pda-init`**: Inizializza una nuova pratica (navigazione e reset accordion).
+- **`/execute-job`**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
+    ```json
+    {
+      "pdaId": "id-univoco",
+      "actions": [
+        { "type": "open_accordion", "name": "Dati Anagrafici" },
+        { "type": "fill", "locator": "input[name='...']", "value": "Test" }
+      ]
+    }
+    ```
 
-### 4. Stato Pagina
-- **URL**: `/current-page`
+### 4. Monitoraggio Job
+- **`/job-status`**: Restituisce il progresso di un job. Body: `{ "pdaId": "..." }`.
+- **`/jobs`**: Restituisce la lista di tutti i job gestiti nella sessione corrente.
 
-### 5. Chiudi Browser
-- **URL**: `/close-browser`
-- **Body**: `{ "force": true }`
-
-### 6. Stato Sessione
-- **URL**: `/api/session-status`
-
-### 7. Inizializza PDA
-- **URL**: `/pda-init`
-- **Metodo**: POST
-- **Body Opzionale**: `{ "force": true }`
-- **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
-- **Descrizione**: Avvia la procedura PDA, naviga e resetta gli accordion.
-
-### 8. Esecuzione Job (Sequenza Async)
-- **URL**: `/execute-job`
-- **Body**: 
-  ```json
-  {
-    "pdaId": "id-univoco-job",
-    "force": false, 
-    "actions": [
-      { "type": "open_accordion", "name": "Dati Anagrafici" },
-      { "type": "fill", "locator": "input[name='...']", "value": "John" },
-      { "type": "radio", "locator": "input[value='M']" },
-      { "type": "wait", "value": 2000 }
-    ]
-  }
-  ```
-- **Azioni Supportate**:
-  | Azione (`type`) | Descrizione | Parametri |
-  | :--- | :--- | :--- |
-  | `open_accordion` | Apre un pannello fisarmonica | `name` (o `value`) |
-  | `close_accordion` | Chiude un pannello fisarmonica | `name` (o `value`) |
-  | `fill` / `text` | Inserisce testo in un input | `locator`, `value` |
-  | `autocomplete` | Gestisce menù di ricerca | `locator`, `value` |
-  | `radio` | Seleziona un pulsante radio | `locator` |
-  | `select` | Seleziona da menù a tendina | `locator`, `value` |
-  | `click` / `button` | Clicca un elemento generico | `locator` |
-  | `wait` | Attesa in millisecondi | `value` (o `ms`) |
-
-- **Descrizione**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
-- **Note**: Tra un'operazione e l'altra viene inserita automaticamente un'attesa di **1 secondo** per garantire la stabilità. È possibile passare un `pdaId` personalizzato; se già in esecuzione, restituirà errore 409. Usa `"force": true` per ignorare il lock globale.
-
-### 9. Stato Job (POST)
-- **URL**: `/job-status`
-- **Method**: POST
-- **Body**: `{ "pdaId": "id-del-job" }`
-- **Descrizione**: Restituisce il progresso e lo stato di un job in background.
-
-
-### 10. Lista Job (POST)
-- **URL**: `/jobs`
-- **Method**: POST
-- **Descrizione**: Restituisce la lista di tutti i job gestiti dal server.
-
-### 11. Codice Pagina
-- **URL**: `/page-code`
+### 5. Debug e Ispezione
+- **`/current-page`**: Restituisce URL e titolo della pagina corrente.
+- **`/page-screenshot`**: Restituisce uno screenshot della pagina in formato **Base64**.
+- **`/page-code`**: Restituisce l'intero codice **HTML** della pagina corrente.
 
 ---
-
-## Test e Debug
-- **Verifica API**: Usa Postman o cURL per testare gli endpoint descritti sopra.
 
 ## Note Tecniche
 
 - **Singleton Browser**: Gestito da `browserManager.js`.
 - **Session State**: Persistito in `session_state.json`.
-- **Singleton Browser**: Gestito da `browserManager.js`.
-- **Session State**: Persistito in `session_state.json`.
 - **Config**: `config.json` (include le opzioni `"HEADLESS": true/false`, `"TOOLS_RETRY": n`).
+- **Config Loader**: Centralizzato in `src/utils/configLoader.js` per garantire coerenza tra i moduli.

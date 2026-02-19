@@ -131,6 +131,17 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - **Reason**: To reduce code duplication, improve maintainability, and provide better observability for background tasks.
 - **Outcome**: A cleaner, more consistent API and more informative logs for debugging.
 
+### 23. README.md Major Update
+- **Change**: Completely overhauled the `README.md` file.
+- **Reason**: The documentation was outdated following the modular refactoring and renaming of `insertPDA` to `executeJob`.
+- **Updates**:
+  - Updated **Mermaid diagram** to reflect the `executeJob` flow and POST methods.
+  - Standardized all API endpoints to **POST** as implemented in `server.js`.
+  - Added missing endpoints: `/page-screenshot`, `/page-code`, `/jobs`, and `/job-status`.
+  - Fixed duplicate numbering and removed legacy `/insert-pda` references.
+  - Added documentation for `TOOLS_RETRY` and the centralized `configLoader`.
+- **Outcome**: A consistent and up-to-date guide for developers and API consumers.
+
 ## Verification
 
 ### Automated Tests
@@ -140,3 +151,4 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
 - Verified that setting `TOOLS_RETRY: 0` makes tools fail immediately.
 - Verified that `initPDA` can be called correctly inside a job action sequence.
 - Confirmed that `/login` strictly uses `config.json` credentials as requested.
+- **New**: Verified the new `README.md` against `src/server.js` endpoint definitions.
