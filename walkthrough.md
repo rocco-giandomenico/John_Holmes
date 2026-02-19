@@ -142,9 +142,19 @@ This walkthrough documents the changes made to the `John_Holmes` project to impr
   - Added documentation for `TOOLS_RETRY` and the centralized `configLoader`.
 - **Outcome**: A consistent and up-to-date guide for developers and API consumers.
 
+### 24. Stateful Variables & Template Engine
+- **File**: `src/procedures/executeJob.js`, `src/tools/extractValueTool.js`
+- **Change**: Implemented a dynamic variable bus and a recursive template resolver.
+- **New Actions**:
+    - `extract`: Extracts data from elements using `mode: text|value|attribute`.
+    - `transform`: Executes regex transformations with capture groups, supporting dynamic pattern resolution.
+- **Templating**: Automatically resolves `{{variable}}` in any action field before execution.
+- **Outcome**: Allows for interdependent actions (e.g., extracting a prefix and using it to clean a phone number) within a single job.
+
 ## Verification
 
 ### Automated Tests
+- `node test/test_advanced_actions.js`: **Passed**. Verified `extract` -> `transform` (regex with template) -> `fill` (resolved template) flow using a mock browser page.
 - `node test/verify_launch_config.js`: Verified headless/headed toggle and config loading.
 
 ### Manual Verification

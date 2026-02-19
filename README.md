@@ -34,59 +34,64 @@ npm run dev
 
 ## Architettura
 
-Il progetto è strutturato in moduli:
-- **`src/server.js`**: Entry point Express.js.
-- **`src/browserManager.js`**: Singleton che gestisce l'istanza del browser Chromium.
-- **`src/tools/`**: Libreria di funzioni atomiche per interagire con la pagina (click, fill, wait).
-- **`src/procedures/`**: Script complessi che orchestrano più tool per completare task (es. Login, Init PDA, Execute Job).
+Il sistema è organizzato in livelli logici per garantire scalabilità e separazione delle responsabilità:
+
+- **API Layer (`src/server.js`)**: Gestisce gli endpoint Express.js e standardizza le risposte di errore.
+- **Browser Manager Layer (`src/browserManager.js`)**: Singleton che coordina l'istanza di Playwright e gestisce il locking globale.
+- **Utility Layer**:
+    - **Tools (`src/tools/`)**: Funzioni atomiche e resilienti per l'interazione con il DOM.
+    - **Procedures (`src/procedures/`)**: Workflow complessi (Login, Init PDA, Execute Job).
+- **Memory Layer**:
+    - **Jobs Repository**: Gestisce lo stato dei task in background (RAM).
+    - **Dynamic Variables**: Bus di dati per lo scambio di informazioni tra azioni (`{{var}}`).
 
 ### Schema di Flusso
 ```mermaid
 ---
 config:
   layout: elk
+  theme: neutral
+  look: classic
 ---
 flowchart TB
- subgraph subGraph0["API Layer (Express)"]
-        Server["server.js"]
+ subgraph utility["Utility Layer"]
+        procedures["Procedures"]
+        tools["Tools"]
+        jobs["JOBS"]
   end
- subgraph subGraph1["Core Agent (Singleton)"]
-        BM["BrowserManager.js"]
-        Jobs["Jobs Repository (RAM)"]
+ subgraph ram["Memory Layer"]
+        loginStatus["Login Status"]
+        variables["Variables"]
   end
- subgraph subGraph2["Procedures (Workflow)"]
-        JobExec["executeJob.js (Sequential)"]
-        Login["login.js"]
-        Init["initPDA.js"]
+ subgraph server["Server"]
+        browserManager["Browser Manager Layer"]
+        apiLayer["API Layer"]
+        playwright["Playwright"]
+        ram
+        utility
   end
- subgraph subGraph3["Tools (Atomic Actions)"]
-        Fill["fillInputTool.js"]
-        Accordion["accordionTool.js"]
-        Radio["radioTool.js"]
-        Autocomplete["fillAutocompleteTool.js"]
-        Overlay["waitForOverlayTool.js"]
+ subgraph container["Flow Chart"]
+        server
+        client(["Client (Postman/Script)"])
+        fastwebPortal(["Fastweb Portal"])
   end
- subgraph subGraph4["Playwright Engine"]
-        Browser["Chromium Instance"]
-  end
-    Client["Client (Postman/Script)"] -- "POST /execute-job" --> Server
-    Server -- executeJob(data, pdaId) --> BM
-    BM -- startJob() --> Jobs
-    BM -- Execute --> JobExec
-    JobExec -- 1s delay between --> JobExec
-    JobExec -- Uses --> Accordion & Fill & Autocomplete & Radio
-    Accordion -- Wait for --> Overlay
-    Fill -- Wait for --> Overlay
-    Autocomplete -- Wait for --> Overlay
-    Radio -- Wait for --> Overlay
-    Accordion -- Commands --> Browser
-    Fill -- Commands --> Browser
-    Autocomplete -- Commands --> Browser
-    Radio -- Commands --> Browser
-    Browser -- Automation --> Fastweb["Portale Fastweb/Salesforce"]
-    Client -- "POST /job-status" --> Server
-    Server -- getJobStatus() --> BM
-    BM -- Read --> Jobs
+    client -- POST --> apiLayer
+    apiLayer -- RES --> client
+    browserManager <--> jobs & loginStatus & apiLayer & playwright & procedures & tools
+    jobs <--> procedures & tools & variables
+    playwright --> fastwebPortal
+    procedures <--> tools
+
+    loginStatus@{ shape: db}
+    variables@{ shape: db}
+     client:::Peach
+     fastwebPortal:::Peach
+    classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
+    style browserManager fill:#FFFFFF,stroke:#FFE0B2
+    style apiLayer fill:#FFFFFF,stroke:#FFCDD2
+    style playwright stroke:#BBDEFB
+    style ram fill:#FFFFFF,stroke:#C8E6C9
+    style utility stroke:#E1BEE7
 ```
 
 ---
@@ -167,18 +172,30 @@ Il server espone i seguenti endpoint **POST** per garantire coerenza e sicurezza
 - **`/secure-logout`**: Esegue il logout sicuro navigando su Global Search e cliccando "Esci".
 - **`/api/session-status`**: Restituisce o imposta lo stato della sessione (`{ "logged": boolean }`).
 
-### 3. Procedure PDA
-- **`/pda-init`**: Inizializza una nuova pratica (navigazione e reset accordion).
-- **`/execute-job`**: Esegue una sequenza lineare di azioni in background. Restituisce un `pdaId`.
+### 3. Procedure e Automazione
+- **`/pda-init`**: Inizializza una nuova pratica.
+- **`/execute-job`**: Esegue una sequenza lineare di azioni con supporto a **variabili di stato**.
     ```json
     {
       "pdaId": "id-univoco",
       "actions": [
-        { "type": "open_accordion", "name": "Dati Anagrafici" },
-        { "type": "fill", "locator": "input[name='...']", "value": "Test" }
+        { "type": "extract", "locator": "#prefix", "variable": "pref", "mode": "text" },
+        { 
+          "type": "transform", 
+          "input": "02123456", 
+          "regex": "^{{pref}}(.+)", 
+          "variables": ["phone_num"] 
+        },
+        { "type": "fill", "locator": "input[name='num']", "value": "{{phone_num}}" }
       ]
     }
     ```
+
+### 🛡️ Motore di Templating e Variabili
+Il sistema `executeJob` ora gestisce un oggetto `variables` interno:
+- **`extract`**: Legge dati dalla pagina (`text`, `value`, `attribute`) e li salva in una variabile.
+- **`transform`**: Manipola stringhe usando **Regex con Gruppi di Cattura** e supporta i placeholder `{{var}}` nel pattern.
+- **Risoluzione Automatica**: Qualsiasi campo stringa nelle azioni (es. `locator`, `value`, `regex`) viene processato per sostituire i placeholder `{{nome_var}}` prima dell'esecuzione.
 
 ### 4. Monitoraggio Job
 - **`/job-status`**: Restituisce il progresso di un job. Body: `{ "pdaId": "..." }`.
