@@ -41,10 +41,17 @@ async function waitForOverlay(page, maxWaitTime = 30000, checkForPopup = false) 
             const isModalVisible = await modal.isVisible().catch(() => false);
 
             if (isModalVisible) {
-                const modalText = (await modal.innerText()).trim().replace(/\n/g, ' ');
-                console.warn(`[POPUP DETECTED] ${modalText}`);
-                // Interrompiamo immediatamente il job riportando il messaggio del popup
-                throw new Error(`POPUP_DETECTED: ${modalText}`);
+                const modalText = (await modal.first().innerText()).trim().replace(/\n/g, ' ');
+
+                // Eccezione per la modale di verifica copertura (case-insensitive)
+                const targetTitle = 'Verifica la disponibilità del servizio FASTWEB'.toLowerCase();
+                if (modalText.toLowerCase().includes(targetTitle)) {
+                    console.log(`[MODAL IGNORED] Trovata modale di copertura: "${modalText}". Procedo.`);
+                } else {
+                    console.warn(`[POPUP DETECTED] ${modalText}`);
+                    // Interrompiamo immediatamente il job riportando il messaggio del popup
+                    throw new Error(`POPUP_DETECTED: ${modalText}`);
+                }
             }
         }
     } catch (error) {
