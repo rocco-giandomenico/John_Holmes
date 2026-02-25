@@ -8,6 +8,7 @@ const { extractValue } = require('../tools/extractValueTool');
 
 // Import predefined procedures
 const initPDAProcedure = require('./initPDA');
+const handleExistingOrderProcedure = require('./handleExistingOrder');
 
 /**
  * Risolve ricorsivamente i placeholder {{var_name}} in un oggetto o stringa.
@@ -86,6 +87,10 @@ async function executeJob(page, data, updateStatus) {
                         result = await initPDAProcedure(page);
                         success = result.success;
                         if (!success) actionDesc += ` (Failed: ${result.message})`;
+                    } else if (action.name === 'handleExistingOrder') {
+                        result = await handleExistingOrderProcedure(page, action);
+                        success = result.success;
+                        if (!success) actionDesc += ` (Failed: ${result.message})`;
                     } else {
                         console.warn(`Procedura non riconosciuta: ${action.name}`);
                         success = false;
@@ -128,7 +133,7 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'autocomplete':
-                    result = await fillAutocomplete(page, action.locator, action.value);
+                    result = await fillAutocomplete(page, action.locator, action.value, action.selectionValue);
                     success = result.success;
                     break;
                 case 'radio':

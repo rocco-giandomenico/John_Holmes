@@ -1,6 +1,7 @@
 const express = require('express');
 const browserManager = require('./browserManager');
 const configLoader = require('./utils/configLoader');
+const { generateInstructions } = require('../develop/logic');
 
 const app = express();
 const port = configLoader.get('PORT', 3000);
@@ -199,6 +200,21 @@ app.post('/execute-job', async (req, res) => {
         });
     } catch (error) {
         sendErrorResponse(res, error);
+    }
+});
+
+/**
+ * Endpoint per generare le istruzioni partendo dai dati della pratica.
+ * Utilizza la logica di mappatura definita in develop/logic.js.
+ * Body: { ... } (Dati della pratica)
+ */
+app.post('/instructions', async (req, res) => {
+    try {
+        const data = req.body;
+        const result = await generateInstructions(data);
+        res.status(200).json(result);
+    } catch (error) {
+        sendErrorResponse(res, error, 400);
     }
 });
 

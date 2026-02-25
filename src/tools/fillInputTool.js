@@ -20,7 +20,9 @@ async function fillInput(page, locator, value) {
             // Attende che l'elemento sia visibile
             await input.waitFor({ state: 'visible', timeout: 5000 });
 
-            // Inserisce il valore
+            // Pulisce l'input preventivamente e inserisce il valore
+            await input.fill('');
+            await page.waitForTimeout(500); // Piccola pausa per stabilizzare il DOM
             await input.fill(value.toString());
             console.log(`Valore '${value}' inserito nel campo: ${locator}`);
 

@@ -171,6 +171,7 @@ Il server espone i seguenti endpoint **POST** per garantire coerenza e sicurezza
 - **`/login`**: Effettua il login usando le credenziali in `config.json`. Supporta `{ "force": true }`.
 - **`/secure-logout`**: Esegue il logout sicuro navigando su Global Search e cliccando "Esci".
 - **`/api/session-status`**: Restituisce o imposta lo stato della sessione (`{ "logged": boolean }`).
+- **`/instructions`**: L'endpoint accetta un JSON con i dati della pratica e restituisce l'oggetto jobPayload direttamente all'interno dell'array: `[{ ... }]`.
 
 ### 3. Procedure e Automazione
 - **`/pda-init`**: Inizializza una nuova pratica.
