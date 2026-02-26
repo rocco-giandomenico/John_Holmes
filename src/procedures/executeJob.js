@@ -9,6 +9,7 @@ const { extractValue } = require('../tools/extractValueTool');
 // Import predefined procedures
 const initPDAProcedure = require('./initPDA');
 const handleExistingOrderProcedure = require('./handleExistingOrder');
+const handlePopupCouponProcedure = require('./handlePopupCoupon');
 
 /**
  * Risolve ricorsivamente i placeholder {{var_name}} in un oggetto o stringa.
@@ -91,6 +92,10 @@ async function executeJob(page, data, updateStatus) {
                         result = await handleExistingOrderProcedure(page, action);
                         success = result.success;
                         if (!success) actionDesc += ` (Failed: ${result.message})`;
+                    } else if (action.name === 'handlePopupCoupon') {
+                        result = await handlePopupCouponProcedure(page, action);
+                        success = result.success;
+                        if (!success) actionDesc += ` (Failed: ${result.message})`;
                     } else {
                         console.warn(`Procedura non riconosciuta: ${action.name}`);
                         success = false;
@@ -102,7 +107,8 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     if (success && action.variable) {
                         variables[action.variable] = result.value;
-                        console.log(`Variabile salvata: ${action.variable} = "${result.value}"`);
+                        const logVal = typeof result.value === 'string' ? `"${result.value}"` : JSON.stringify(result.value);
+                        console.log(`Variabile salvata: ${action.variable} = ${logVal}`);
                     }
                     break;
                 case 'transform':
@@ -129,7 +135,7 @@ async function executeJob(page, data, updateStatus) {
                     break;
                 case 'fill':
                 case 'text':
-                    result = await fillInput(page, action.locator, action.value);
+                    result = await fillInput(page, action.locator, action.value, action.timeout);
                     success = result.success;
                     break;
                 case 'autocomplete':
@@ -137,16 +143,16 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'radio':
-                    result = await checkRadioButton(page, action.locator);
+                    result = await checkRadioButton(page, action.locator, action.timeout);
                     success = result.success;
                     break;
                 case 'select':
-                    result = await selectOption(page, action.locator, action.value);
+                    result = await selectOption(page, action.locator, action.value, action.timeout);
                     success = result.success;
                     break;
                 case 'click':
                 case 'button':
-                    result = await clickElement(page, action.locator);
+                    result = await clickElement(page, action.locator, action.timeout);
                     success = result.success;
                     break;
                 case 'wait':

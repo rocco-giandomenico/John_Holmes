@@ -14,14 +14,21 @@ async function extractValue(page, locator, mode = 'text') {
         const result = await withRetry(async () => {
             const element = page.locator(locator);
 
-            // Attende che l'elemento sia presente nel DOM (non necessariamente visibile per l'estrazione)
-            await element.waitFor({ state: 'attached', timeout: 5000 });
+            // Se siamo in modalità lista, aspettiamo che almeno il primo elemento sia presente
+            // per evitare l'errore di "strict mode violation" del locator.waitFor
+            if (mode === 'list') {
+                await element.first().waitFor({ state: 'attached', timeout: 5000 });
+            } else {
+                await element.waitFor({ state: 'attached', timeout: 5000 });
+            }
 
             let value;
             if (mode === 'text') {
                 value = await element.innerText();
             } else if (mode === 'value') {
                 value = await element.inputValue();
+            } else if (mode === 'list') {
+                value = await element.allInnerTexts();
             } else if (mode.startsWith('attribute')) {
                 const attrName = mode.match(/attribute\((.+)\)/)?.[1];
                 if (!attrName) throw new Error(`Formato attributo non valido: ${mode}`);

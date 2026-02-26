@@ -8,9 +8,10 @@ const configLoader = require('../utils/configLoader');
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {string} locator - Il selettore del campo di input.
  * @param {string|number} value - Il valore da inserire.
+ * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function fillInput(page, locator, value) {
+async function fillInput(page, locator, value, timeout = 5000) {
     let lastErrorMessage = null;
 
     try {
@@ -18,7 +19,7 @@ async function fillInput(page, locator, value) {
             const input = page.locator(locator);
 
             // Attende che l'elemento sia visibile
-            await input.waitFor({ state: 'visible', timeout: 5000 });
+            await input.waitFor({ state: 'visible', timeout });
 
             // Pulisce l'input preventivamente e inserisce il valore
             await input.fill('');

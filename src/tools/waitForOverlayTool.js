@@ -23,7 +23,8 @@ async function waitForOverlay(page, maxWaitTime = 30000, checkForPopup = false) 
         }).catch(() => false);
 
         if (isVisible) {
-            console.log('Overlay rilevato. Attendo il completamento dell\'operazione...');
+            const overlayText = await overlay.innerText().catch(() => '');
+            console.log(`Overlay rilevato [${overlayText.trim()}]. Attendo il completamento dell'operazione...`);
 
             // 2. Attendiamo che l'overlay torni in 'display: none' o venga rimosso
             await overlay.waitFor({ state: 'hidden', timeout: maxWaitTime });

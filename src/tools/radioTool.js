@@ -7,15 +7,16 @@ const configLoader = require('../utils/configLoader');
  * 
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {string} locator - Il selettore del pulsante radio.
+ * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<boolean>} - True se l'operazione è riuscita.
  */
-async function checkRadioButton(page, locator) {
+async function checkRadioButton(page, locator, timeout = 5000) {
     try {
         await withRetry(async () => {
             const radioButton = page.locator(locator);
 
             // Attende che l'elemento sia presente nel DOM
-            await radioButton.waitFor({ state: 'attached', timeout: 5000 });
+            await radioButton.waitFor({ state: 'attached', timeout });
 
             // Verifica se è già selezionato
             const isAlreadyChecked = await radioButton.isChecked();

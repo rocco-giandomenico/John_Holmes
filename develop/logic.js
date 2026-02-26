@@ -1,3 +1,11 @@
+// Node.js specific imports for file saving (only if in Node environments)
+const isNode = typeof process !== 'undefined' && process.versions && process.versions.node;
+let fs, path;
+if (isNode) {
+    fs = require('fs');
+    path = require('path');
+}
+
 // FUNCTIONS ------------------------------------------------------------------ 
 
 function formatDateWithZeros(dateStr) {
@@ -42,6 +50,17 @@ async function getAddress(q) {
  * @returns {Promise<Array>} Un array contenente l'oggetto json: jobPayload (formato n8n)
  */
 async function generateInstructions(data) {
+    // --- Salva il JSON in ingresso in pda.json (solo in ambiente Node.js) ---
+    if (isNode) {
+        try {
+            const pdaFilePath = path.join(__dirname, 'pda.json');
+            fs.writeFileSync(pdaFilePath, JSON.stringify(data, null, 4), 'utf8');
+            console.log(`[LOGIC] Dati salvati con successo in: ${pdaFilePath}`);
+        } catch (err) {
+            console.error("[LOGIC] Errore nel salvataggio di pda.json:", err);
+        }
+    }
+
     const actions = [];
 
     // --- STEP 1: Inizializzazione ---
@@ -624,6 +643,52 @@ async function generateInstructions(data) {
         "locator": "button[ng-click='vaiAlCarrello()']",
         "description": "Click su Vai al Carrello"
     });
+
+    // --- ESTRAZIONE PRODOTTI NEL CARRELLO ---
+    actions.push({
+        "type": "extract",
+        "locator": "tr:has(.externalInputImg) .descriptionColumn span",
+        "variable": "prodotti_carrello",
+        "mode": "list",
+        "description": "Estrazione nomi prodotti nel carrello"
+    });
+
+    actions.push({
+        "type": "procedure",
+        "name": "handlePopupCoupon",
+        "locator": "tr:has(span:text-is('Fastweb Business')) .externalInputImg:visible",
+        "coupon": data.coupon,
+        "description": "Click e gestione Popup"
+    });
+
+    // --- TIPOLOGIA SCONTO ---
+    actions.push({
+        "type": "click",
+        "locator": "[class*='main-content-box-header']:has-text('Tipologia Sconto') img",
+        "timeout": 20000, // Timeout esteso per attendere il caricamento post-popup
+        "description": "Attivazione sezione Tipologia Sconto"
+    });
+
+    actions.push({
+        "type": "select",
+        "locator": ".main-content-box:has-text('Tipologia Sconto') select",
+        "value": "Generici",
+        "description": "Selezione Tipologia Sconto: Generici"
+    });
+
+    // --- SEZIONE SCONTI ---
+    actions.push({
+        "type": "click",
+        "locator": "[class*='main-content-box-header']:has-text('Sconti') img",
+        "description": "Apertura sezione Sconti"
+    });
+
+    actions.push({
+        "type": "click",
+        "locator": ".section:has(label:has-text('Sconto di 3 euro')) input[type=\"checkbox\"]",
+        "description": "Selezione sconto: Sconto di 3 euro"
+    });
+
 
     // Added 15-minute wait
     actions.push({

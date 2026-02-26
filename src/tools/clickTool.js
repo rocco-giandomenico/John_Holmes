@@ -7,13 +7,14 @@ const configLoader = require('../utils/configLoader');
  * 
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {string} locator - Il selettore dell'elemento da cliccare.
+ * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function clickElement(page, locator) {
+async function clickElement(page, locator, timeout = 5000) {
     try {
         await withRetry(async () => {
             const element = page.locator(locator);
-            await element.waitFor({ state: 'visible', timeout: 5000 });
+            await element.waitFor({ state: 'visible', timeout });
             await element.click();
             console.log(`Click eseguito su: ${locator}`);
 
