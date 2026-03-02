@@ -16,7 +16,7 @@ async function setAccordionState(page, locator, targetState = 'open') {
         const section = page.locator(locator);
 
         // Verifichiamo se l'elemento esiste prima di procedere
-        await section.waitFor({ state: 'attached', timeout: 5000 });
+        await section.waitFor({ state: 'attached', timeout: 15000 });
 
         const isExpanded = await section.getAttribute('aria-expanded') === 'true';
 
@@ -33,7 +33,7 @@ async function setAccordionState(page, locator, targetState = 'open') {
         }
 
         // ATTESA OVERLAY + MODAL post-click
-        await waitForOverlay(page, 30000, true);
+        await waitForOverlay(page, 60000, true);
     }, retries, 1000);
 }
 

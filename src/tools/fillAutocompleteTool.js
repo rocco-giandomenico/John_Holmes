@@ -3,6 +3,39 @@ const { withRetry } = require('./retryTool');
 const configLoader = require('../utils/configLoader');
 
 /**
+ * Calcola il punteggio di somiglianza tra due stringhe utilizzando l'algoritmo di Levenshtein.
+ * Restituisce un valore tra 0 e 1 (1 = identiche).
+ */
+function getSimilarityScore(s1, s2) {
+    const v1 = s1.toUpperCase().trim();
+    const v2 = s2.toUpperCase().trim();
+
+    if (v1 === v2) return 1.0;
+    if (v1.length === 0 || v2.length === 0) return 0.0;
+
+    const costs = [];
+    for (let i = 0; i <= v1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= v2.length; j++) {
+            if (i === 0) {
+                costs[j] = j;
+            } else if (j > 0) {
+                let newValue = costs[j - 1];
+                if (v1.charAt(i - 1) !== v2.charAt(j - 1)) {
+                    newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                }
+                costs[j - 1] = lastValue;
+                lastValue = newValue;
+            }
+        }
+        if (i > 0) costs[v2.length] = lastValue;
+    }
+
+    const distance = costs[v2.length];
+    return 1.0 - (distance / Math.max(v1.length, v2.length));
+}
+
+/**
  * Gestisce i campi Autocomplete (Typeahead).
  * Scrive nel campo, attende il menu dei suggerimenti e clicca l'opzione desiderata.
  * 
@@ -19,7 +52,7 @@ async function fillAutocomplete(page, inputLocator, value, selectionValue = null
             const input = page.locator(inputLocator);
 
             // 1. Assicuriamoci che il campo sia visibile
-            await input.waitFor({ state: 'visible', timeout: 5000 });
+            await input.waitFor({ state: 'visible', timeout: 15000 });
 
             // 2. Scriviamo il valore (usa fill che è più rapido e affidabile, scatena input/change)
             await input.fill('');
@@ -31,47 +64,48 @@ async function fillAutocomplete(page, inputLocator, value, selectionValue = null
             const itemSelector = `${resultSelector}`;
             // Usiamo .first() solo per aspettare che "qualcosa" appaia
             try {
-                // Attendi che il primo risultato sia visibile (timeout 5s)
-                await page.locator(itemSelector).first().waitFor({ state: 'visible', timeout: 5000 });
+                // Attendi che il primo risultato sia visibile (timeout 15s)
+                await page.locator(itemSelector).first().waitFor({ state: 'visible', timeout: 15000 });
             } catch (e) {
                 console.warn(`Menu suggerimenti non apparso per '${value}'. Possibile errore di rete o input.`);
                 throw e; // Rilancia per attivare il retry
             }
 
-            // 4. Selezione Rigorosa: Cerchiamo l'opzione che corrisponde al valore target
-            const targetValue = (selectionValue || value).toUpperCase();
-
-            // Recuperiamo tutte le opzioni visibili
+            // 4. Selezione tramite Punteggio di Somiglianza
+            const targetValue = (selectionValue || value).toUpperCase().trim();
             const options = await page.locator(itemSelector).all();
-            let matchFound = false;
 
-            console.log(`Ricerca match per: '${targetValue}' nel menu suggerimenti...`);
+            let bestOption = null;
+            let maxScore = -1;
+            let bestText = "";
+
+            console.log(`Analisi somiglianza per: '${targetValue}'...`);
 
             for (const option of options) {
-                // Controlla che sia effettivamente visibile (doppia sicurezza)
                 if (await option.isVisible()) {
-                    const text = await option.textContent();
-                    // Confronto case-insensitive ma ESATTO (trim sugli spazi)
-                    if (text && text.trim().toUpperCase() === targetValue) {
-                        await option.click();
-                        console.log(`Opzione ESATTA '${text.trim()}' cliccata dal menu.`);
-                        matchFound = true;
-                        break;
+                    const text = (await option.textContent() || "").trim();
+                    const score = getSimilarityScore(text, targetValue);
+
+                    if (score > maxScore) {
+                        maxScore = score;
+                        bestOption = option;
+                        bestText = text;
                     }
+
+                    // Se troviamo un match perfetto, fermiamoci
+                    if (score === 1.0) break;
                 }
             }
 
-            if (!matchFound) {
-                console.warn(`Nessuna corrispondenza esatta per '${value}' trovata nel menu.`);
-                // Log opzioni disponibili per debug
-                for (const opt of options) {
-                    if (await opt.isVisible()) console.warn(`- Disponibile: ${await opt.textContent()}`);
-                }
-                throw new Error(`Impossibile trovare match esatto per: ${value}`);
+            if (bestOption && maxScore >= 0) {
+                console.log(`Miglior match trovato: '${bestText}' (Punteggio: ${(maxScore * 100).toFixed(2)}%)`);
+                await bestOption.click();
+            } else {
+                throw new Error(`Nessun suggerimento utilizzabile nel menu per: ${value}`);
             }
 
             // 5. Attesa finale per eventuali ricalcoli (overlay + modal)
-            await waitForOverlay(page, 30000, true);
+            await waitForOverlay(page, 60000, true);
 
         }, configLoader.get('TOOLS_RETRY', 2), 1000); // Usa config o default 2
 

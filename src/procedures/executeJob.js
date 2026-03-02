@@ -4,6 +4,9 @@ const { checkRadioButton } = require('../tools/radioTool');
 const { selectOption } = require('../tools/selectOptionTool');
 const { setAccordionState } = require('../tools/accordionTool');
 const { clickElement } = require('../tools/clickTool');
+const { clickAllElements } = require('../tools/clickAllTool');
+const { setCheckbox } = require('../tools/checkboxTool');
+const { uploadFile } = require('../tools/uploadFileTool');
 const { extractValue } = require('../tools/extractValueTool');
 
 // Import predefined procedures
@@ -153,6 +156,18 @@ async function executeJob(page, data, updateStatus) {
                 case 'click':
                 case 'button':
                     result = await clickElement(page, action.locator, action.timeout);
+                    success = result.success;
+                    break;
+                case 'click_all':
+                    result = await clickAllElements(page, action.locator, action.timeout);
+                    success = result.success;
+                    break;
+                case 'checkbox':
+                    result = await setCheckbox(page, action.locator, action.value !== false, action.timeout);
+                    success = result.success;
+                    break;
+                case 'upload':
+                    result = await uploadFile(page, action.locator, action.value, action.timeout);
                     success = result.success;
                     break;
                 case 'wait':

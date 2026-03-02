@@ -10,7 +10,7 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<boolean>} - True se l'operazione è riuscita.
  */
-async function checkRadioButton(page, locator, timeout = 5000) {
+async function checkRadioButton(page, locator, timeout = 15000) {
     try {
         await withRetry(async () => {
             const radioButton = page.locator(locator);
@@ -29,7 +29,7 @@ async function checkRadioButton(page, locator, timeout = 5000) {
             }
 
             // ATTESA OVERLAY + MODAL (Sempre, per catturare errori asincroni della pagina)
-            await waitForOverlay(page, 30000, true);
+            await waitForOverlay(page, 60000, true);
         }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
         return { success: true };

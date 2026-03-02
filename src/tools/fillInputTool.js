@@ -11,7 +11,7 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function fillInput(page, locator, value, timeout = 5000) {
+async function fillInput(page, locator, value, timeout = 15000) {
     let lastErrorMessage = null;
 
     try {
@@ -28,7 +28,7 @@ async function fillInput(page, locator, value, timeout = 5000) {
             console.log(`Valore '${value}' inserito nel campo: ${locator}`);
 
             // Attesa overlay post-inserimento (con controllo popup)
-            await waitForOverlay(page, 30000, true);
+            await waitForOverlay(page, 60000, true);
         }, configLoader.get('TOOLS_RETRY', 2), 1000);
 
         return { success: true };

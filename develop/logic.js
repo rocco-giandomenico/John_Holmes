@@ -294,6 +294,8 @@ async function generateInstructions(data) {
         const fw = await getAddress(`${streetOrig} ${numOrig}, ${cityOrig}`);
         const fwCivico = fw.number ? `${fw.number}${fw.exponent ? '/' + fw.exponent : ''}` : (numOrig || '0/SNC');
 
+        console.log(fw);
+
         actions.push({
             "type": "autocomplete",
             "locator": "input[name='section2_cittaDiAttivazione']",
@@ -422,6 +424,8 @@ async function generateInstructions(data) {
         const fwRes = await getAddress(`${streetOrigRes} ${numOrigRes}, ${cityOrigRes}`);
         const fwCivicoRes = fwRes.number ? `${fwRes.number}${fwRes.exponent ? '/' + fwRes.exponent : ''}` : (numOrigRes || '0/SNC');
 
+        console.log(fwRes);
+
         actions.push({
             "type": "autocomplete",
             "locator": "input[name='section2_cittaDiSedeLegale']",
@@ -442,6 +446,13 @@ async function generateInstructions(data) {
             "value": fwRes.number || numOrigRes || '0',
             "selectionValue": fwCivicoRes,
             "description": "Inserimento Civico di Sede Legale"
+        });
+
+        actions.push({
+            "type": "fill",
+            "locator": "input[name='section2_capDiSedeLegale']", // Verifica se il nome del campo è corretto per il CAP
+            "value": fwRes.zipcode || data.customer.indirizzoCap || "",
+            "description": "Inserimento CAP di Sede Legale"
         });
 
         actions.push({
@@ -662,40 +673,178 @@ async function generateInstructions(data) {
     });
 
     // --- TIPOLOGIA SCONTO ---
+    // actions.push({
+    //     "type": "click",
+    //     "locator": "[class*='main-content-box-header']:has-text('Tipologia Sconto') img",
+    //     "timeout": 20000, // Timeout esteso per attendere il caricamento post-popup
+    //     "description": "Attivazione sezione Tipologia Sconto"
+    // });
+
+    // actions.push({
+    //     "type": "select",
+    //     "locator": ".main-content-box:has-text('Tipologia Sconto') select",
+    //     "value": "Generici",
+    //     "description": "Selezione Tipologia Sconto: Generici"
+    // });
+
+    // actions.push({
+    //     "type": "click",
+    //     "locator": "[class*='main-content-box-header']:has-text('Sconti') img",
+    //     "description": "Apertura sezione Sconti"
+    // });
+
+    // actions.push({
+    //     "type": "click",
+    //     "locator": ".section:has(label:has-text('Sconto di 3 euro')) input[type=\"checkbox\"]",
+    //     "description": "Selezione sconto: Sconto di 3 euro"
+    // });
+
     actions.push({
         "type": "click",
-        "locator": "[class*='main-content-box-header']:has-text('Tipologia Sconto') img",
-        "timeout": 20000, // Timeout esteso per attendere il caricamento post-popup
-        "description": "Attivazione sezione Tipologia Sconto"
+        "locator": "#saveButton",
+        "description": "Clic su Procedi"
+    });
+
+    actions.push({
+        "type": "click",
+        "locator": "#saveButton",
+        "description": "Clic sul secondo Procedi"
+    });
+
+    // ------------------------------------------------------------------------
+
+    actions.push({
+        "type": "open_accordion",
+        "locator": "a.accordion-toggle:has-text('Dati di Residenza')",
+        "description": "Apertura Dati di Residenza"
+    });
+
+    actions.push({
+        "type": "click_all",
+        "locator": "button:has-text('Copia Indirizzo di Attivazione'):visible",
+        "description": "Copia Indirizzo di Attivazione (su tutti i visibili)"
+    });
+
+    actions.push({
+        "type": "click_all",
+        "locator": "button:has-text('Copia Dati Cliente'):visible",
+        "description": "Copia Dati Cliente (su tutti i visibili)"
+    });
+
+    actions.push({
+        "type": "click_all",
+        "locator": "button:has-text('Copia Dati Firmatario'):visible",
+        "description": "Copia Dati Firmatario"
+    });
+
+    actions.push({
+        "type": "click_all",
+        "locator": "button:has-text('Verifica Dati Fiscali'):visible",
+        "description": "Verifica Dati Fiscali"
+    });
+
+    actions.push({
+        "type": "fill",
+        "locator": "input[name='section2_piano']",
+        "value": "T",
+        "description": "Inserimento Piano"
     });
 
     actions.push({
         "type": "select",
-        "locator": ".main-content-box:has-text('Tipologia Sconto') select",
-        "value": "Generici",
-        "description": "Selezione Tipologia Sconto: Generici"
+        "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
+        "value": "Telefono e FAX",
+        "description": "Selezione Utilizzo Linea: Telefono e FAX"
     });
 
-    // --- SEZIONE SCONTI ---
+    if (data.tipoLinea === 2) {
+        actions.push({
+            "type": "select",
+            "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
+            "value": "Tradizionale",
+            "description": "Selezione Tipo Linea: Tradizionale"
+        });
+    }
+    else {
+        actions.push({
+            "type": "select",
+            "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
+            "value": "ISDN",
+            "description": "Selezione Tipo Linea: ISDN"
+        });
+    }
+
+    actions.push({
+        "type": "fill",
+        "locator": "input[name='section3_codiceIban']",
+        "value": data.pagamento.ibanDecrypt || "",
+        "description": "Inserimento Codice IBAN"
+    });
+
+    // CONSENSI ---------------------------------------------------------------
+
+    actions.push({
+        "type": "radio",
+        "locator": "input[name='section4_consensoAnalisiFW2'][value='true']",
+        "description": "Consenso Analisi FW2: SI"
+    });
+
+    actions.push({
+        "type": "radio",
+        "locator": "input[name='section4_consensoMarketingProdottiFWPartner'][value='true']",
+        "description": "Consenso Marketing Partner: SI"
+    });
+
+    actions.push({
+        "type": "checkbox",
+        "locator": "input[name='section4_consensoPubblicazioneElencoTelefonico']",
+        "value": true,
+        "description": "Deselezione Consenso Pubblicazione Elenco Telefonico"
+    });
+
+    // ------------------------------------------------------------------------
+
     actions.push({
         "type": "click",
-        "locator": "[class*='main-content-box-header']:has-text('Sconti') img",
-        "description": "Apertura sezione Sconti"
+        "locator": "button:has-text('Genera Riepilogo Ordine')",
+        "description": "Genera Riepilogo Ordine (attende che sia abilitato)"
+    });
+
+    // FIRMA ELETTRONICA ------------------------------------------------------
+
+    actions.push({
+        "type": "click",
+        "locator": "#firmaElettronicaTMT",
+        "description": "Click su Firma Elettronica BRICKS"
+    });
+
+    actions.push({
+        "type": "fill",
+        "locator": "input#EnvelopeId",
+        "value": data.additional_parameters['Envelop ID'],
+        "description": "Inserimento Envelope ID"
     });
 
     actions.push({
         "type": "click",
-        "locator": ".section:has(label:has-text('Sconto di 3 euro')) input[type=\"checkbox\"]",
-        "description": "Selezione sconto: Sconto di 3 euro"
+        "locator": "#syncOrderSignatureTMT",
+        "description": "Verifica ENVELOPE ID"
     });
 
+    // actions.push({
+    //     "type": "click",
+    //     "locator": "button:has-text('Procedi')[ng-click*='showTMTDocumentSection']",
+    //     "description": "Click su Procedi (Sezione Documentazione)"
+    // });
 
-    // Added 15-minute wait
-    actions.push({
-        "type": "wait",
-        "ms": 900000,
-        "description": "Attesa di 15 minuti dopo il carrello"
-    });
+    // CARICA FILE ------------------------------------------------------------
+
+    // // Added 15-minute wait
+    // actions.push({
+    //     "type": "wait",
+    //     "ms": 900000,
+    //     "description": "Attesa di 15 minuti dopo il carrello"
+    // });
 
     // ----------------------------------------------------------------------------
 

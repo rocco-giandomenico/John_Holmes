@@ -2,24 +2,35 @@ const express = require('express');
 const browserManager = require('./browserManager');
 const configLoader = require('./utils/configLoader');
 const { generateInstructions } = require('../develop/logic');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const port = configLoader.get('PORT', 3000);
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Middleware di logging globale per debug
+app.use((req, res, next) => {
+    console.log(`[SERVER] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+});
 
 /**
  * Helper per gestire le risposte di errore standardizzate.
  * Gestisce automaticamente il codice 409 se l'errore indica che il sistema è occupato.
  */
-function sendErrorResponse(res, error, defaultStatus = 500) {
+function sendErrorResponse(res, error, defaultStatus = 200) {
     const message = error.message || error;
     const isBusy = message.includes('BUSY') || message.includes('già in esecuzione');
-    const status = isBusy ? 409 : defaultStatus;
+    // Forziamo lo status a 200 come richiesto, mantenendo la distinzione nel log
+    const status = isBusy ? 200 : 200;
 
-    res.status(status).json({
+    res.status(200).json({
         success: false,
-        error: message
+        message: message
     });
 }
 
@@ -65,10 +76,10 @@ app.post('/login', async (req, res) => {
                 url: result.url
             });
         } else {
-            // Caso gestito (es. sessione concorrente)
-            res.status(401).json({
+            // Caso gestito (es. sessione concorrente) - Forza 200
+            res.status(200).json({
                 success: false,
-                error: result.error || 'Login failed.',
+                message: result.error || 'Login failed.',
                 url: result.url
             });
         }
@@ -169,7 +180,7 @@ app.post('/pda-init', async (req, res) => {
         if (result.success) {
             res.status(200).json(result);
         } else {
-            res.status(500).json(result);
+            res.status(200).json(result);
         }
     } catch (error) {
         sendErrorResponse(res, error);
@@ -192,7 +203,7 @@ app.post('/execute-job', async (req, res) => {
         const force = req.body.force === true || req.body.force === 'true';
 
         const pdaId = await browserManager.executeJob(data, pdaIdReq, force);
-        res.status(202).json({
+        res.status(200).json({
             success: true,
             pdaId: pdaId,
             message: 'Esecuzione Job (Sequenza) avviata in background.',
@@ -226,9 +237,9 @@ app.post('/instructions', async (req, res) => {
 app.post('/job-status', (req, res) => {
     const pdaId = req.body.pdaId || req.body.id;
     if (!pdaId) {
-        return res.status(400).json({
+        return res.status(200).json({
             success: false,
-            error: 'ID del job (pdaId) mancante nel body.'
+            message: 'ID del job (pdaId) mancante nel body.'
         });
     }
 
@@ -236,9 +247,9 @@ app.post('/job-status', (req, res) => {
     if (job) {
         res.status(200).json(job);
     } else {
-        res.status(404).json({
+        res.status(200).json({
             success: false,
-            error: 'Job non trovato.'
+            message: 'Job non trovato.'
         });
     }
 });
@@ -286,6 +297,201 @@ app.post('/page-code', async (req, res) => {
     }
 });
 
+/**
+ * Configurazione Multer per l'upload dei documenti.
+ * Salva i file in files/currents e svuota la cartella prima del salvataggio.
+ */
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadPath = path.join(process.cwd(), 'files', 'currents');
+
+        // Verifica ed eventuale creazione della cartella
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        } else {
+            // Svuota la cartella prima di ogni nuovo upload "di gruppo"
+            // Nota: multer chiama destination per ogni file, ma noi vogliamo svuotare solo all'inizio.
+            // Per semplicità e sicurezza del requisito "tutti insieme", svuotiamo se rileviamo il primo file 
+            // o gestiamo la pulizia in una funzione separata (più robusto).
+        }
+        cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+        cb(null, file.originalname);
+    }
+});
+
+const upload = multer({ storage: storage });
+
+/**
+ * Endpoint per far scaricare al server i documenti da Kiop.
+ * n8n passa solo i metadati e il token, il server scarica i file direttamente.
+ * Body: { pdaId, accessToken, files: [{ id, name }] }
+ */
+app.post('/fetch-documents', async (req, res) => {
+    const { pdaId, accessToken, files, clearFolder } = req.body;
+    const uploadPath = path.join(process.cwd(), 'files', 'currents');
+
+    if (!pdaId || !accessToken || !files || !Array.isArray(files)) {
+        return res.status(200).json({ success: false, message: 'Parametri mancanti: pdaId, accessToken e files (array) sono richiesti.' });
+    }
+
+    try {
+        // 1. Svuota la cartella SOLO se espressamente richiesto (per download in batch)
+        if (clearFolder === true) {
+            console.log(`[SERVER] Svuotamento cartella currents richiesto.`);
+            if (fs.existsSync(uploadPath)) {
+                const existingFiles = fs.readdirSync(uploadPath);
+                for (const f of existingFiles) {
+                    fs.unlinkSync(path.join(uploadPath, f));
+                }
+            }
+        }
+
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+
+        const savedFiles = [];
+        const axios = require('axios'); // Assicuriamoci che sia disponibile
+
+        // 2. Download sequenziale dei file
+        for (const fileItem of files) {
+            console.log(`[SERVER] Inizio download file: ${fileItem.name} (ID: ${fileItem.id})`);
+
+            const response = await axios({
+                url: `https://pda.kiop.it/solida/api/pda/${pdaId}/file-entries/${fileItem.id}/download`,
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                responseType: 'arraybuffer'
+            });
+
+            const filePath = path.join(uploadPath, fileItem.name);
+            fs.writeFileSync(filePath, Buffer.from(response.data));
+            savedFiles.push(fileItem.name);
+            console.log(`[SERVER] File salvato: ${fileItem.name}`);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `${savedFiles.length} file scaricati e salvati correttamente in files/currents.`,
+            files: savedFiles
+        });
+
+    } catch (error) {
+        console.error(`[SERVER] Errore durante il fetch dei documenti:`, error.message);
+        sendErrorResponse(res, `Errore durante il fetch: ${error.message}`);
+    }
+});
+
+/**
+ * Endpoint per l'upload documenti.
+ * Salva i dati ricevuti in develop/files.json.
+ */
+app.post('/upload-documents', async (req, res) => {
+    try {
+        const data = req.body;
+        const filesJsonPath = path.join(process.cwd(), 'develop', 'files.json');
+
+        fs.writeFileSync(filesJsonPath, JSON.stringify(data, null, 4), 'utf8');
+        console.log(`[SERVER] Ricevuti dati upload salvati in: ${filesJsonPath}`);
+
+        const { pdaId, files } = data;
+        if (!pdaId || !files || !Array.isArray(files)) {
+            return res.status(400).json({ success: false, message: 'Parametri mancanti: pdaId e files (array) sono richiesti.' });
+        }
+
+        const downloadKiopFiles = require('./procedures/downloadKiopFiles');
+        const downloadResult = await downloadKiopFiles(pdaId, files);
+
+        res.status(200).json({
+            success: true,
+            message: 'Dati salvati e file scaricati correttamente in files/currents',
+            downloadedFiles: downloadResult.files
+        });
+    } catch (error) {
+        console.error(`[SERVER] Errore critico nell'endpoint upload-documents:`, error);
+        sendErrorResponse(res, error || 'Errore sconosciuto durante il processo');
+    }
+});
+
+/**
+ * Endpoint per ripulire la cartella logs.
+ */
+app.post('/clear-logs', (req, res) => {
+    try {
+        const logsPath = path.join(process.cwd(), 'logs');
+        if (fs.existsSync(logsPath)) {
+            const items = fs.readdirSync(logsPath);
+            for (const item of items) {
+                const fullPath = path.join(logsPath, item);
+                const stats = fs.statSync(fullPath);
+                if (stats.isFile()) {
+                    fs.unlinkSync(fullPath);
+                } else if (stats.isDirectory()) {
+                    fs.rmSync(fullPath, { recursive: true, force: true });
+                }
+            }
+            console.log(`[SERVER] Cartella logs ripulita (${items.length} elementi rimossi).`);
+            res.status(200).json({
+                success: true,
+                message: `Cartella logs ripulita correttamente. Rimossi ${items.length} elementi.`
+            });
+        } else {
+            res.status(200).json({ success: true, message: 'Cartella logs non trovata, nulla da ripulire.' });
+        }
+    } catch (error) {
+        console.error(`[SERVER] Errore pulizia log:`, error.message);
+        sendErrorResponse(res, `Errore durante la pulizia dei log: ${error.message}`);
+    }
+});
+
+/**
+ * Endpoint per ripulire la cartella files/olds.
+ */
+app.post('/clear-olds', (req, res) => {
+    try {
+        const oldsPath = path.join(process.cwd(), 'files', 'olds');
+        if (fs.existsSync(oldsPath)) {
+            const items = fs.readdirSync(oldsPath);
+            for (const item of items) {
+                const fullPath = path.join(oldsPath, item);
+                const stats = fs.statSync(fullPath);
+                if (stats.isFile()) {
+                    fs.unlinkSync(fullPath);
+                } else if (stats.isDirectory()) {
+                    fs.rmSync(fullPath, { recursive: true, force: true });
+                }
+            }
+            console.log(`[SERVER] Cartella files/olds ripulita (${items.length} elementi rimossi).`);
+            res.status(200).json({
+                success: true,
+                message: `Cartella files/olds ripulita correttamente. Rimossi ${items.length} elementi.`
+            });
+        } else {
+            res.status(200).json({ success: true, message: 'Cartella files/olds non trovata, nulla da ripulire.' });
+        }
+    } catch (error) {
+        console.error(`[SERVER] Errore pulizia olds:`, error.message);
+        sendErrorResponse(res, `Errore durante la pulizia di olds: ${error.message}`);
+    }
+});
+
 app.listen(port, () => {
     console.log(`Server Playwright in ascolto su http://localhost:${port}`);
+});
+
+// Middleware globale per la gestione degli errori (assicura risposte JSON anche per crash imprevisti o errori del body-parser)
+app.use((err, req, res, next) => {
+    console.error(`[SERVER] Errore non gestito:`, err);
+
+    // Se la risposta è già stata inviata, delega al gestore di default
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(200).json({
+        success: false,
+        message: err.message || 'Errore interno del server'
+    });
 });

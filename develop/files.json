@@ -1,0 +1,45 @@
+{
+    "pdaId": 492196,
+    "files": [
+        {
+            "createdBy": "ROBERTA PEDALINO",
+            "createdDate": "2026-02-25T18:29:25Z",
+            "lastModifiedBy": "ROBERTA PEDALINO",
+            "lastModifiedDate": "2026-02-25T17:29:25Z",
+            "id": 304261,
+            "folderId": 226370,
+            "repositoryId": 2,
+            "name": "VISURA.pdf",
+            "extension": "pdf",
+            "mimeType": "application/pdf",
+            "sourceId": 492196,
+            "sourceType": "PDA",
+            "type": "Visura",
+            "code": null,
+            "visibility": 0,
+            "size": 54258,
+            "treePath": null,
+            "treePathName": null
+        },
+        {
+            "createdBy": "ROBERTA PEDALINO",
+            "createdDate": "2026-02-25T18:28:56Z",
+            "lastModifiedBy": "ROBERTA PEDALINO",
+            "lastModifiedDate": "2026-02-25T17:28:56Z",
+            "id": 304258,
+            "folderId": 226370,
+            "repositoryId": 2,
+            "name": "DOC.pdf",
+            "extension": "pdf",
+            "mimeType": "application/pdf",
+            "sourceId": 492196,
+            "sourceType": "PDA",
+            "type": "Documento di Identità",
+            "code": null,
+            "visibility": 0,
+            "size": 264011,
+            "treePath": null,
+            "treePathName": null
+        }
+    ]
+}
