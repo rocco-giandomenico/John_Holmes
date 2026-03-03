@@ -10,10 +10,11 @@ const fs = require('fs');
  * @param {import('playwright').Page} page - L'oggetto pagina di Playwright.
  * @param {string} locator - Il selettore dell'input file.
  * @param {string|string[]} filePath - Il percorso (o i percorsi) del file da caricare. Può essere assoluto o relativo alla root del progetto.
+ * @param {string} pdaId - L'ID della PDA per organizzare i file spostati.
  * @param {number} timeout - Tempo massimo di attesa (default 15000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function uploadFile(page, locator, filePath, timeout = 15000) {
+async function uploadFile(page, locator, filePath, pdaId, timeout = 15000) {
     try {
         await withRetry(async () => {
             const input = page.locator(locator);
@@ -21,30 +22,53 @@ async function uploadFile(page, locator, filePath, timeout = 15000) {
             // Per gli input file, Playwright consiglia di aspettare che siano presenti nel DOM (attached)
             await input.waitFor({ state: 'attached', timeout });
 
-            // Gestione percorsi: risolviamo i percorsi se sono relativi
+            // Gestione percorsi: risolviamo i percorsi se sono relativi e gestiamo wildcard
             const files = Array.isArray(filePath) ? filePath : [filePath];
-            const absolutePaths = files.map(p => {
-                const resolved = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
+            const absolutePaths = [];
+
+            for (const p of files) {
+                let resolved = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
+
+                // Supporto wildcard (*)
+                if (resolved.includes('*')) {
+                    const dir = path.dirname(resolved);
+                    const pattern = path.basename(resolved).replace(/\./g, '\\.').replace(/\*/g, '.*');
+                    const regex = new RegExp(`^${pattern}$`, 'i');
+
+                    if (fs.existsSync(dir)) {
+                        const filesInDir = fs.readdirSync(dir);
+                        const matchedFile = filesInDir.find(f => regex.test(f));
+                        if (matchedFile) {
+                            resolved = path.join(dir, matchedFile);
+                            console.log(`Wildcard risolta: ${p} -> ${resolved}`);
+                        } else {
+                            throw new Error(`Nessun file trovato per il pattern: ${resolved}`);
+                        }
+                    } else {
+                        throw new Error(`Directory non trovata per risoluzione wildcard: ${dir}`);
+                    }
+                }
+
                 if (!fs.existsSync(resolved)) {
                     throw new Error(`File non trovato: ${resolved}`);
                 }
-                return resolved;
-            });
+                absolutePaths.push(resolved);
+            }
 
             console.log(`Caricamento file (${absolutePaths.join(', ')}) su: ${locator}`);
 
             // Imposta i file nell'input
             await input.setInputFiles(absolutePaths);
 
-            // Spesso il caricamento scatta un overlay o una modale di attesa
-            await waitForOverlay(page, 60000, true);
-
-            // 4. Spostamento dei file nella cartella 'olds' dopo il successo
-            const oldsDir = path.resolve(process.cwd(), 'olds');
+            // Sposto i file in 'olds/{pdaId}' dopo l'upload
+            const oldsDir = path.resolve(process.cwd(), 'files', 'olds', String(pdaId || 'unknown'));
             if (!fs.existsSync(oldsDir)) {
                 fs.mkdirSync(oldsDir, { recursive: true });
                 console.log(`Cartella creata: ${oldsDir}`);
             }
+
+            // Spesso il caricamento scatta un overlay o una modale di attesa
+            await waitForOverlay(page, 60000, true);
 
             for (const oldPath of absolutePaths) {
                 const fileName = path.basename(oldPath);

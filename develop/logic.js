@@ -30,11 +30,48 @@ function formatDateWithZeros(dateStr) {
 }
 
 async function getAddress(q) {
+    function getSimilarity(s1, s2) {
+        const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const str1 = normalize(s1);
+        const str2 = normalize(s2);
+
+        if (str1 === str2) return 1;
+        let hits = 0;
+        const words1 = str1.split(' ').filter(Boolean);
+        const words2 = str2.split(' ').filter(Boolean);
+        if (words1.length === 0 || words2.length === 0) return 0;
+
+        for (const w1 of words1) {
+            if (words2.includes(w1)) hits++;
+        }
+        return hits / Math.max(words1.length, words2.length);
+    }
+
     try {
         const url = `https://www.fastweb.it/AVT/ajax/getVia/?q=${encodeURIComponent(q)}`;
         const res = await fetch(url);
         const data = await res.json();
-        return data?.resp?.[0] || {};
+
+        if (!data?.resp || data.resp.length === 0) return {};
+
+        const results = data.resp.map(item => {
+            const street = item.street || '';
+            const number = item.number || '';
+            const city = item.city || '';
+            const province = item.province || '';
+
+            // Reconstructed format: street number, city (province)
+            const fullAddress = `${street} ${number}, ${city} (${province})`.replace(/\s+/g, ' ').replace(/ ,/g, ',').trim();
+            const similarity = getSimilarity(q, fullAddress);
+            console.log(`[DEBUG] Confronto: "${q}" vs "${fullAddress}" -> Score: ${similarity.toFixed(4)}`);
+            return { ...item, fullAddress, similarity };
+        });
+
+        results.sort((a, b) => b.similarity - a.similarity);
+
+        console.log("Miglior match indirizzo:", results[0].fullAddress, "(score:", results[0].similarity, ")");
+        return results[0];
+
     } catch (e) {
         console.error("Errore getAddress:", e);
         return {};
@@ -291,7 +328,7 @@ async function generateInstructions(data) {
         const numOrig = data.indirizzoNum || "";
 
         // Recupero indirizzo normalizzato da Fastweb
-        const fw = await getAddress(`${streetOrig} ${numOrig}, ${cityOrig}`);
+        const fw = await getAddress(`${streetOrig} ${numOrig}, ${cityOrig} (${data.indirizzoProvinciaTxt})`);
         const fwCivico = fw.number ? `${fw.number}${fw.exponent ? '/' + fw.exponent : ''}` : (numOrig || '0/SNC');
 
         console.log(fw);
@@ -421,7 +458,7 @@ async function generateInstructions(data) {
         const numOrigRes = data.customer.indirizzoNum || "";
 
         // Recupero indirizzo normalizzato da Fastweb
-        const fwRes = await getAddress(`${streetOrigRes} ${numOrigRes}, ${cityOrigRes}`);
+        const fwRes = await getAddress(`${streetOrigRes} ${numOrigRes}, ${cityOrigRes} (${data.customer.indirizzoProvinciaTxt})`);
         const fwCivicoRes = fwRes.number ? `${fwRes.number}${fwRes.exponent ? '/' + fwRes.exponent : ''}` : (numOrigRes || '0/SNC');
 
         console.log(fwRes);
@@ -661,6 +698,7 @@ async function generateInstructions(data) {
         "locator": "tr:has(.externalInputImg) .descriptionColumn span",
         "variable": "prodotti_carrello",
         "mode": "list",
+        "timeout": 30000,
         "description": "Estrazione nomi prodotti nel carrello"
     });
 
@@ -728,7 +766,8 @@ async function generateInstructions(data) {
     actions.push({
         "type": "click_all",
         "locator": "button:has-text('Copia Dati Cliente'):visible",
-        "description": "Copia Dati Cliente (su tutti i visibili)"
+        "description": "Copia Dati Cliente (su tutti i visibili)",
+        "isBlocking": false
     });
 
     actions.push({
@@ -750,30 +789,34 @@ async function generateInstructions(data) {
         "description": "Inserimento Piano"
     });
 
-    actions.push({
-        "type": "select",
-        "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
-        "value": "Telefono e FAX",
-        "description": "Selezione Utilizzo Linea: Telefono e FAX"
-    });
-
-    if (data.tipoLinea === 2) {
+    if (data.npMigrationCodeVoce !== null) {
         actions.push({
             "type": "select",
-            "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
-            "value": "Tradizionale",
-            "description": "Selezione Tipo Linea: Tradizionale"
-        });
-    }
-    else {
-        actions.push({
-            "type": "select",
-            "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
-            "value": "ISDN",
-            "description": "Selezione Tipo Linea: ISDN"
+            "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
+            "value": "Telefono e FAX",
+            "description": "Selezione Utilizzo Linea: Telefono e FAX",
+            "isBlocking": false
         });
     }
 
+    if (data.npMigrationCodeDati !== null) {
+        if (data.tipoLinea === 2) {
+            actions.push({
+                "type": "select",
+                "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
+                "value": "Tradizionale",
+                "description": "Selezione Tipo Linea: Tradizionale"
+            });
+        }
+        else {
+            actions.push({
+                "type": "select",
+                "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
+                "value": "ISDN",
+                "description": "Selezione Tipo Linea: ISDN"
+            });
+        }
+    }
     actions.push({
         "type": "fill",
         "locator": "input[name='section3_codiceIban']",
@@ -812,39 +855,77 @@ async function generateInstructions(data) {
 
     // FIRMA ELETTRONICA ------------------------------------------------------
 
-    actions.push({
-        "type": "click",
-        "locator": "#firmaElettronicaTMT",
-        "description": "Click su Firma Elettronica BRICKS"
-    });
+    if (data.firmaDigitale === 1) {
+        actions.push({
+            "type": "click",
+            "locator": "#firmaElettronicaTMT",
+            "description": "Click su Firma Elettronica BRICKS"
+        });
 
-    actions.push({
-        "type": "fill",
-        "locator": "input#EnvelopeId",
-        "value": data.additional_parameters['Envelop ID'],
-        "description": "Inserimento Envelope ID"
-    });
+        actions.push({
+            "type": "fill",
+            "locator": "input#EnvelopeId",
+            "value": data.additional_parameters['Envelop ID'],
+            "description": "Inserimento Envelope ID"
+        });
 
-    actions.push({
-        "type": "click",
-        "locator": "#syncOrderSignatureTMT",
-        "description": "Verifica ENVELOPE ID"
-    });
+        actions.push({
+            "type": "click",
+            "locator": "#syncOrderSignatureTMT",
+            "description": "Verifica ENVELOPE ID"
+        });
 
-    // actions.push({
-    //     "type": "click",
-    //     "locator": "button:has-text('Procedi')[ng-click*='showTMTDocumentSection']",
-    //     "description": "Click su Procedi (Sezione Documentazione)"
-    // });
+        actions.push({
+            "type": "click",
+            "locator": "button:has-text('Procedi')[ng-click*='showTMTDocumentSection']",
+            "description": "Click su Procedi (Sezione Documentazione)"
+        });
+    }
 
     // CARICA FILE ------------------------------------------------------------
 
-    // // Added 15-minute wait
+    actions.push({
+        "type": "upload",
+        "locator": "#TMTPdaRequiredDocument",
+        "value": `files/currents/${data.id}_id_card*.pdf`,
+        "description": "Caricamento Carta di Identità"
+    });
+
+    actions.push({
+        "type": "upload",
+        "locator": "#TMTPdaFirstDocument",
+        "value": `files/currents/${data.id}_visura*.pdf`,
+        "description": "Caricamento Visura Camerale"
+    });
+
     // actions.push({
-    //     "type": "wait",
-    //     "ms": 900000,
-    //     "description": "Attesa di 15 minuti dopo il carrello"
+    //     "type": "upload",
+    //     "locator": "#pdaOtherDocument",
+    //     "value": `files/currents/${data.id}_pda*.pdf`,
+    //     "description": "Caricamento Documentazione PDA"
     // });
+
+    actions.push({
+        "type": "click",
+        "locator": "button:has-text('Conferma Ordine')",
+        "description": "Click su Conferma Ordine"
+    });
+
+    actions.push({
+        "type": "download",
+        "locator": "#linkPDF",
+        "description": "Download PDA"
+    });
+
+
+    // Added 15-minute wait
+    actions.push({
+        "type": "wait",
+        "ms": 900000,
+        "description": "Attesa di 15 minuti dopo il carrello"
+    });
+
+
 
     // ----------------------------------------------------------------------------
 

@@ -10,7 +10,7 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa iniziale (default 5000ms).
  * @returns {Promise<{success: boolean, clickedCount: number, error?: string}>} - Esito dell'operazione.
  */
-async function clickAllElements(page, locator, timeout = 15000) {
+async function clickAllElements(page, locator, timeout = 15000, isBlocking = true) {
     try {
         let clickedCount = 0;
 
@@ -43,6 +43,12 @@ async function clickAllElements(page, locator, timeout = 15000) {
         if (error.message.includes('POPUP_DETECTED')) {
             throw error;
         }
+
+        if (!isBlocking) {
+            console.log(`[OPTIONAL] Fallimento click_all per (${locator}) dopo tentativi di retry: ${error.message}. Passo oltre.`);
+            return { success: true, clickedCount: 0, skipped: true };
+        }
+
         console.error(`Fallimento click_all per (${locator}):`, error.message);
         return { success: false, error: error.message };
     }

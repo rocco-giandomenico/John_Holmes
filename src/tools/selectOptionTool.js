@@ -11,7 +11,7 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<boolean>} - True se l'operazione è riuscita.
  */
-async function selectOption(page, locator, value, timeout = 15000) {
+async function selectOption(page, locator, value, timeout = 15000, isBlocking = true) {
     try {
         await withRetry(async () => {
             const select = page.locator(locator);
@@ -32,6 +32,12 @@ async function selectOption(page, locator, value, timeout = 15000) {
         if (error.message.includes('POPUP_DETECTED')) {
             throw error;
         }
+
+        if (!isBlocking) {
+            console.log(`[OPTIONAL] Fallimento select per (${locator}) dopo tentativi di retry: ${error.message}. Passo oltre.`);
+            return { success: true, skipped: true };
+        }
+
         console.error(`Fallimento definitivo dopo i tentativi per select (${locator}):`, error.message);
         return { success: false, error: error.message };
     }

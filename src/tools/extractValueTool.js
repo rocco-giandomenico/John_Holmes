@@ -7,9 +7,10 @@ const configLoader = require('../utils/configLoader');
  * @param {import('playwright').Page} page - La pagina del browser.
  * @param {string} locator - Il selettore dell'elemento.
  * @param {string} mode - Modalità di estrazione: 'text', 'value', 'attribute(attrName)'.
+ * @param {number} timeout - Timeout massimo in millisecondi (default 15000).
  * @returns {Promise<{success: boolean, value?: string, error?: string}>}
  */
-async function extractValue(page, locator, mode = 'text') {
+async function extractValue(page, locator, mode = 'text', timeout = 15000) {
     try {
         const result = await withRetry(async () => {
             const element = page.locator(locator);
@@ -17,9 +18,9 @@ async function extractValue(page, locator, mode = 'text') {
             // Se siamo in modalità lista, aspettiamo che almeno il primo elemento sia presente
             // per evitare l'errore di "strict mode violation" del locator.waitFor
             if (mode === 'list') {
-                await element.first().waitFor({ state: 'attached', timeout: 5000 });
+                await element.first().waitFor({ state: 'attached', timeout });
             } else {
-                await element.waitFor({ state: 'attached', timeout: 5000 });
+                await element.waitFor({ state: 'attached', timeout });
             }
 
             let value;

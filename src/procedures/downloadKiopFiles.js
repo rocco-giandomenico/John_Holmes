@@ -44,6 +44,10 @@ async function downloadKiopFiles(pdaId, files, clearFolder = true) {
     }
 
     try {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const currentDateTime = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const suffix = `_${currentDateTime}`;
         // 1. Autenticazione (Logica da test.js)
         console.log(`[DOWNLOAD] Richiesta token per procedere...`);
         const authUrl = 'https://account.kiop.it/realms/maxel/protocol/openid-connect/token';
@@ -83,6 +87,12 @@ async function downloadKiopFiles(pdaId, files, clearFolder = true) {
         for (const fileItem of files) {
             console.log(`[DOWNLOAD] Inizio download file: ${fileItem.name} (ID: ${fileItem.id})`);
 
+            // 3.0 Controllo estensione (deve essere PDF)
+            const isPdf = fileItem.extension?.toLowerCase() === 'pdf' || fileItem.name?.toLowerCase().endsWith('.pdf');
+            if (!isPdf) {
+                throw new Error(`Il file ${fileItem.name} non è un PDF. Solo i file PDF sono ammessi.`);
+            }
+
             const response = await axios({
                 url: `https://pda.kiop.it/solida/api/pda/${pdaId}/file-entries/${fileItem.id}/download`,
                 method: 'GET',
@@ -98,10 +108,26 @@ async function downloadKiopFiles(pdaId, files, clearFolder = true) {
                 throw new Error(`Integrità fallita per ${fileItem.name}: il file è troppo piccolo (${fileBuffer.length} byte) e potrebbe essere corrotto.`);
             }
 
-            const filePath = path.join(uploadPath, fileItem.name);
+            // Determine filename based on type
+            let fileName = fileItem.name;
+            if (fileItem.type === 'Visura') {
+                fileName = `${pdaId}_visura${suffix}.pdf`;
+            } else if (fileItem.type === 'Documento di Identità') {
+                fileName = `${pdaId}_id_card${suffix}.pdf`;
+            } else if (fileItem.type === 'Altro') {
+                fileName = `${pdaId}_pda${suffix}.pdf`;
+            } else {
+                if (fileName.toLowerCase().endsWith('.pdf')) {
+                    fileName = fileName.slice(0, -4) + suffix + '.pdf';
+                } else {
+                    fileName = fileName + suffix + '.pdf';
+                }
+            }
+
+            const filePath = path.join(uploadPath, fileName);
             fs.writeFileSync(filePath, fileBuffer);
-            savedFiles.push(fileItem.name);
-            console.log(`[DOWNLOAD] File salvato: ${fileItem.name}`);
+            savedFiles.push(fileName);
+            console.log(`[DOWNLOAD] File salvato: ${fileName}`);
         }
 
         return {

@@ -8,6 +8,7 @@ const { clickAllElements } = require('../tools/clickAllTool');
 const { setCheckbox } = require('../tools/checkboxTool');
 const { uploadFile } = require('../tools/uploadFileTool');
 const { extractValue } = require('../tools/extractValueTool');
+const { downloadFile } = require('../tools/downloadFileTool');
 
 // Import predefined procedures
 const initPDAProcedure = require('./initPDA');
@@ -58,8 +59,12 @@ async function executeJob(page, data, updateStatus) {
         throw new Error('Il campo "actions" deve essere un array.');
     }
 
-    // Inizializzazione bus variabili per il job corrente
+    // Inizializzazione bus variabili e risultati per il job corrente
     const variables = {};
+    const jobResults = {
+        downloads: [],
+        extractedValues: {}
+    };
 
     console.log(`Avvio sequenza di ${rawActions.length} azioni PDA...`);
 
@@ -106,12 +111,17 @@ async function executeJob(page, data, updateStatus) {
                     }
                     break;
                 case 'extract':
-                    result = await extractValue(page, action.locator, action.mode || 'text');
+                    result = await extractValue(page, action.locator, action.mode || 'text', action.timeout);
                     success = result.success;
-                    if (success && action.variable) {
-                        variables[action.variable] = result.value;
-                        const logVal = typeof result.value === 'string' ? `"${result.value}"` : JSON.stringify(result.value);
-                        console.log(`Variabile salvata: ${action.variable} = ${logVal}`);
+                    if (success) {
+                        if (action.variable) {
+                            variables[action.variable] = result.value;
+                            const logVal = typeof result.value === 'string' ? `"${result.value}"` : JSON.stringify(result.value);
+                            console.log(`Variabile salvata: ${action.variable} = ${logVal}`);
+                        }
+                        // Salviamo nei risultati globali del job
+                        const resKey = action.variable || `extract_${i + 1}`;
+                        jobResults.extractedValues[resKey] = result.value;
                     }
                     break;
                 case 'transform':
@@ -124,6 +134,7 @@ async function executeJob(page, data, updateStatus) {
                                 // I gruppi di cattura partono da match[1]
                                 variables[varName] = match[idx + 1] || '';
                                 console.log(`Variabile trasformata: ${varName} = "${variables[varName]}"`);
+                                jobResults.extractedValues[varName] = variables[varName];
                             });
                         } else if (!match) {
                             console.warn(`Regex '${action.regex}' non ha prodotto match su '${input}'`);
@@ -150,7 +161,7 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'select':
-                    result = await selectOption(page, action.locator, action.value, action.timeout);
+                    result = await selectOption(page, action.locator, action.value, action.timeout, action.isBlocking);
                     success = result.success;
                     break;
                 case 'click':
@@ -159,7 +170,7 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'click_all':
-                    result = await clickAllElements(page, action.locator, action.timeout);
+                    result = await clickAllElements(page, action.locator, action.timeout, action.isBlocking);
                     success = result.success;
                     break;
                 case 'checkbox':
@@ -167,8 +178,19 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'upload':
-                    result = await uploadFile(page, action.locator, action.value, action.timeout);
+                    result = await uploadFile(page, action.locator, action.value, data.pdaId, action.timeout);
                     success = result.success;
+                    break;
+                case 'download':
+                    result = await downloadFile(page, action.locator, action.timeout);
+                    success = result.success;
+                    if (success && result.fileName) {
+                        jobResults.downloads.push({
+                            fileName: result.fileName,
+                            filePath: result.filePath,
+                            actionDesc
+                        });
+                    }
                     break;
                 case 'wait':
                     const ms = parseInt(action.value || action.ms || 1000);
@@ -197,9 +219,11 @@ async function executeJob(page, data, updateStatus) {
 
     await updateStatus(100, 'Inserimento completato.');
     console.log('Sequenza completata con successo.');
-    return { success: true, message: 'Sequenza completata con successo.' };
+    return {
+        success: true,
+        message: 'Sequenza completata con successo.',
+        results: jobResults
+    };
 }
-
-module.exports = executeJob;
 
 module.exports = executeJob;

@@ -329,7 +329,7 @@ const upload = multer({ storage: storage });
  * Body: { pdaId, accessToken, files: [{ id, name }] }
  */
 app.post('/fetch-documents', async (req, res) => {
-    const { pdaId, accessToken, files, clearFolder } = req.body;
+    const { pdaId, accessToken, files, clearFolder, jobTimestamp } = req.body;
     const uploadPath = path.join(process.cwd(), 'files', 'currents');
 
     if (!pdaId || !accessToken || !files || !Array.isArray(files)) {
@@ -355,6 +355,11 @@ app.post('/fetch-documents', async (req, res) => {
         const savedFiles = [];
         const axios = require('axios'); // Assicuriamoci che sia disponibile
 
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const currentDateTime = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const suffix = `_${currentDateTime}`;
+
         // 2. Download sequenziale dei file
         for (const fileItem of files) {
             console.log(`[SERVER] Inizio download file: ${fileItem.name} (ID: ${fileItem.id})`);
@@ -366,10 +371,20 @@ app.post('/fetch-documents', async (req, res) => {
                 responseType: 'arraybuffer'
             });
 
-            const filePath = path.join(uploadPath, fileItem.name);
+            // Determine filename based on type (consistent with downloadKiopFiles)
+            let fileName = fileItem.name;
+            if (fileItem.type === 'Visura') {
+                fileName = `${pdaId}_visura${suffix}.pdf`;
+            } else if (fileItem.type === 'Documento di Identità') {
+                fileName = `${pdaId}_id_card${suffix}.pdf`;
+            } else if (fileItem.type === 'Altro') {
+                fileName = `${pdaId}_pda${suffix}.pdf`;
+            }
+
+            const filePath = path.join(uploadPath, fileName);
             fs.writeFileSync(filePath, Buffer.from(response.data));
-            savedFiles.push(fileItem.name);
-            console.log(`[SERVER] File salvato: ${fileItem.name}`);
+            savedFiles.push(fileName);
+            console.log(`[SERVER] File salvato: ${fileName}`);
         }
 
         res.status(200).json({
@@ -396,13 +411,13 @@ app.post('/upload-documents', async (req, res) => {
         fs.writeFileSync(filesJsonPath, JSON.stringify(data, null, 4), 'utf8');
         console.log(`[SERVER] Ricevuti dati upload salvati in: ${filesJsonPath}`);
 
-        const { pdaId, files } = data;
+        const { pdaId, files, jobTimestamp } = data;
         if (!pdaId || !files || !Array.isArray(files)) {
-            return res.status(400).json({ success: false, message: 'Parametri mancanti: pdaId e files (array) sono richiesti.' });
+            return res.status(200).json({ success: false, message: 'Parametri mancanti: pdaId e files (array) sono richiesti.' });
         }
 
         const downloadKiopFiles = require('./procedures/downloadKiopFiles');
-        const downloadResult = await downloadKiopFiles(pdaId, files);
+        const downloadResult = await downloadKiopFiles(pdaId, files, true);
 
         res.status(200).json({
             success: true,
@@ -474,6 +489,66 @@ app.post('/clear-olds', (req, res) => {
     } catch (error) {
         console.error(`[SERVER] Errore pulizia olds:`, error.message);
         sendErrorResponse(res, `Errore durante la pulizia di olds: ${error.message}`);
+    }
+});
+
+/**
+ * Endpoint per listare i file scaricati (POST).
+ */
+app.post('/list-downloads', (req, res) => {
+    try {
+        const downloadsPath = path.join(process.cwd(), 'files', 'downloads');
+        if (fs.existsSync(downloadsPath)) {
+            const files = fs.readdirSync(downloadsPath);
+            res.status(200).json({
+                success: true,
+                files: files
+            });
+        } else {
+            res.status(200).json({
+                success: true,
+                files: [],
+                message: 'Cartella downloads non ancora creata.'
+            });
+        }
+    } catch (error) {
+        sendErrorResponse(res, error);
+    }
+});
+
+/**
+ * Endpoint per scaricare un file specifico (POST).
+ * Body: { "filename": "..." }
+ */
+app.post('/get-download', (req, res) => {
+    try {
+        const { filename } = req.body;
+        if (!filename) {
+            return res.status(200).json({ success: false, message: 'Filename mancante nel body.' });
+        }
+
+        // Protezione semplice contro directory traversal
+        const safeFilename = path.basename(filename);
+        const filePath = path.join(process.cwd(), 'files', 'downloads', safeFilename);
+
+        if (fs.existsSync(filePath)) {
+            // res.download forza il download con gli header corretti (Content-Disposition, ecc.)
+            res.download(filePath, safeFilename, (err) => {
+                if (err) {
+                    console.error(`Errore durante invio file: ${err.message}`);
+                    if (!res.headersSent) {
+                        res.status(200).json({ success: false, message: 'Errore durante l\'invio del file.' });
+                    }
+                }
+            });
+        } else {
+            res.status(200).json({
+                success: false,
+                message: `File '${safeFilename}' non trovato.`
+            });
+        }
+    } catch (error) {
+        sendErrorResponse(res, error);
     }
 });
 
