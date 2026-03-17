@@ -40,7 +40,11 @@ async function downloadKiopFiles(pdaId, files, clearFolder = true) {
     const uploadPath = path.join(process.cwd(), 'files', 'currents');
 
     if (!Array.isArray(files) || files.length === 0) {
-        throw new Error('Nessun file fornito per il download.');
+        console.log(`[DOWNLOAD] Nessun file fornito per il download. Procedura saltata.`);
+        return {
+            success: true,
+            files: []
+        };
     }
 
     try {
@@ -110,11 +114,11 @@ async function downloadKiopFiles(pdaId, files, clearFolder = true) {
 
             // Determine filename based on type
             let fileName = fileItem.name;
-            if (fileItem.type === 'Visura') {
+            if (fileItem.type === 'Visura' || fileItem.type === 'visura') {
                 fileName = `${pdaId}_visura${suffix}.pdf`;
-            } else if (fileItem.type === 'Documento di Identità') {
+            } else if (fileItem.type === 'Documento di Identità' || fileItem.type === 'documentoIdentita') {
                 fileName = `${pdaId}_id_card${suffix}.pdf`;
-            } else if (fileItem.type === 'Altro') {
+            } else if (fileItem.type === 'Altro' || fileItem.type === 'pdaCartacea') {
                 fileName = `${pdaId}_pda${suffix}.pdf`;
             } else {
                 if (fileName.toLowerCase().endsWith('.pdf')) {

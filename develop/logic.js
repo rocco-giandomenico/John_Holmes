@@ -36,15 +36,59 @@ async function getAddress(q) {
         const str2 = normalize(s2);
 
         if (str1 === str2) return 1;
-        let hits = 0;
+
         const words1 = str1.split(' ').filter(Boolean);
         const words2 = str2.split(' ').filter(Boolean);
         if (words1.length === 0 || words2.length === 0) return 0;
 
+        // Levenshtein distance for fuzzy matching
+        const levenshtein = (a, b) => {
+            const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+            for (let j = 1; j <= b.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= a.length; i++) {
+                for (let j = 1; j <= b.length; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j] + 1,      // deletion
+                        matrix[i][j - 1] + 1,      // insertion
+                        matrix[i - 1][j - 1] + cost // substitution
+                    );
+                }
+            }
+            return matrix[a.length][b.length];
+        };
+
+        const wordSimilarity = (w1, w2) => {
+            if (w1 === w2) return 1;
+            const dist = levenshtein(w1, w2);
+            const maxLen = Math.max(w1.length, w2.length);
+            return (maxLen - dist) / maxLen;
+        };
+
+        let totalScore = 0;
+        const usedW2 = new Set();
+
         for (const w1 of words1) {
-            if (words2.includes(w1)) hits++;
+            let maxW1Score = 0;
+            let bestW2Idx = -1;
+
+            for (let j = 0; j < words2.length; j++) {
+                if (usedW2.has(j)) continue;
+                const score = wordSimilarity(w1, words2[j]);
+                if (score > maxW1Score) {
+                    maxW1Score = score;
+                    bestW2Idx = j;
+                }
+            }
+
+            // Consider accurate only if above a certain threshold (e.g., 0.6)
+            if (maxW1Score > 0.6) {
+                totalScore += maxW1Score;
+                if (bestW2Idx !== -1) usedW2.add(bestW2Idx);
+            }
         }
-        return hits / Math.max(words1.length, words2.length);
+
+        return totalScore / Math.max(words1.length, words2.length);
     }
 
     try {
@@ -323,7 +367,7 @@ async function generateInstructions(data) {
 
 
         // --- INDIRIZZO DI ATTIVAZIONE ---
-        const streetOrig = `${data.toponimo?.name || ""} ${data.indirizzoVia || ""}`.trim();
+        const streetOrig = `${data.toponimo || ""} ${data.indirizzoVia || ""}`.trim();
         const cityOrig = data.indirizzoCittaTxt || "";
         const numOrig = data.indirizzoNum || "";
 
@@ -671,7 +715,7 @@ async function generateInstructions(data) {
         if (data.customer.formaGiuridica !== 'Individuale') {
 
             // Calcolo della chiave per la mappa: se c'è PIVA allora è 'PIVA', altrimenti 'CF'
-            const chiaveSoggetto = data.customer.partitaIva ? 'PIVA' : 'CF';
+            const chiaveSoggetto = data.pagamento.bankCustomerType === 1 ? 'PIVA' : 'CF';
             const valoreRadio = addebitoAziendaMap[chiaveSoggetto];
             actions.push({
                 "type": "radio",
@@ -682,7 +726,7 @@ async function generateInstructions(data) {
     }
 
     // ----------------------------------------------------------------------------
-    // CREAZIONE OFFERTA
+    // SECONDO STEP ---------------------------------------------------------------
     // ----------------------------------------------------------------------------
 
     // 3. Navigazione al Carrello
@@ -702,40 +746,62 @@ async function generateInstructions(data) {
         "description": "Estrazione nomi prodotti nel carrello"
     });
 
+    const offertaMapping = {
+        'Business': 'Fastweb Business',
+        'Business Light': 'Fastweb Business Light',
+        'Fastweb Business Pro': 'Fastweb Business Pro',
+        'Business Plus': 'Fastweb Business Plus'
+    };
+    const offerta = offertaMapping[data.offer.name] || '';
+
     actions.push({
         "type": "procedure",
         "name": "handlePopupCoupon",
-        "locator": "tr:has(span:text-is('Fastweb Business')) .externalInputImg:visible",
+        "locator": `tr:has(span:text-is('${offerta}')) .externalInputImg:visible`,
         "coupon": data.coupon,
         "description": "Click e gestione Popup"
     });
 
     // --- TIPOLOGIA SCONTO ---
-    // actions.push({
-    //     "type": "click",
-    //     "locator": "[class*='main-content-box-header']:has-text('Tipologia Sconto') img",
-    //     "timeout": 20000, // Timeout esteso per attendere il caricamento post-popup
-    //     "description": "Attivazione sezione Tipologia Sconto"
-    // });
+    if (data.sconto != null) {
+        actions.push({
+            "type": "click",
+            "locator": "[class*='main-content-box-header']:has-text('Tipologia Sconto') img",
+            "description": "Attivazione sezione Tipologia Sconto"
+        });
 
-    // actions.push({
-    //     "type": "select",
-    //     "locator": ".main-content-box:has-text('Tipologia Sconto') select",
-    //     "value": "Generici",
-    //     "description": "Selezione Tipologia Sconto: Generici"
-    // });
+        actions.push({
+            "type": "select",
+            "locator": ".main-content-box:has-text('Tipologia Sconto') select",
+            "value": 'Generici',
+            "description": "Selezione Tipologia Sconto: Generici"
+        });
+    }
 
-    // actions.push({
-    //     "type": "click",
-    //     "locator": "[class*='main-content-box-header']:has-text('Sconti') img",
-    //     "description": "Apertura sezione Sconti"
-    // });
+    // --- SCONTO ---
+    if (data.sconto != null) {
 
-    // actions.push({
-    //     "type": "click",
-    //     "locator": ".section:has(label:has-text('Sconto di 3 euro')) input[type=\"checkbox\"]",
-    //     "description": "Selezione sconto: Sconto di 3 euro"
-    // });
+        actions.push({
+            "type": "click",
+            "locator": "[class*='main-content-box-header']:has-text('Sconti') img",
+            "description": "Apertura sezione Sconti"
+        });
+
+        // Estrazione nomi sconti disponibili (solo quelli visibili e solo il titolo principale)
+        // actions.push({
+        //     "type": "extract",
+        //     "locator": ".main-content-box:has-text('Sconti') .section .legend label.attributeNameLabel:visible",
+        //     "variable": "lista_sconti",
+        //     "mode": "list",
+        //     "description": "Estrazione nomi sconti disponibili"
+        // });
+
+        actions.push({
+            "type": "click",
+            "locator": `.section:has(label:has-text('Sconto di 3 euro')) input[type=\"checkbox\"]`,
+            "description": `Selezione sconto: Sconto di 3 euro`
+        });
+    }
 
     actions.push({
         "type": "click",
@@ -750,6 +816,8 @@ async function generateInstructions(data) {
     });
 
     // ------------------------------------------------------------------------
+    // TERZO STEP -------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     actions.push({
         "type": "open_accordion",
@@ -758,22 +826,38 @@ async function generateInstructions(data) {
     });
 
     actions.push({
-        "type": "click_all",
-        "locator": "button:has-text('Copia Indirizzo di Attivazione'):visible",
-        "description": "Copia Indirizzo di Attivazione (su tutti i visibili)"
+        "type": "click",
+        "locator": "#phase1_tipologiaFissoMobile button[ng-click='copiaAttivazioneToIntestatario()']",
+        "isOptional": true,
+        "description": "Copia Indirizzo di Attivazione"
+    });
+
+    // actions.push({
+    //     "type": "click",
+    //     "locator": "button[ng-click='copiaToSedeLegale()']",
+    //     "isOptional": true,
+    //     "description": "Copia Indirizzo di Attivazione (Sede Legale)"
+    // });
+
+    actions.push({
+        "type": "click",
+        "locator": "#phase1_tipologiaFissoMobile button[ng-click='copiaDatiClienteToIntestatario()']",
+        "isOptional": true,
+        "description": "Copia Dati Cliente"
+    });
+
+    actions.push({
+        "type": "click",
+        "locator": "#datiIndirizzoSpedizione button[ng-click='copiaToSpedizione()']",
+        "isOptional": true,
+        "description": "Copia Dati Spedizione"
     });
 
     actions.push({
         "type": "click_all",
-        "locator": "button:has-text('Copia Dati Cliente'):visible",
-        "description": "Copia Dati Cliente (su tutti i visibili)",
+        "locator": "button:has-text('Verifica Documento'):visible",
+        "description": "Verifica Documento",
         "isBlocking": false
-    });
-
-    actions.push({
-        "type": "click_all",
-        "locator": "button:has-text('Copia Dati Firmatario'):visible",
-        "description": "Copia Dati Firmatario"
     });
 
     actions.push({
@@ -789,17 +873,18 @@ async function generateInstructions(data) {
         "description": "Inserimento Piano"
     });
 
-    if (data.npMigrationCodeVoce !== null) {
-        actions.push({
-            "type": "select",
-            "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
-            "value": "Telefono e FAX",
-            "description": "Selezione Utilizzo Linea: Telefono e FAX",
-            "isBlocking": false
-        });
-    }
 
-    if (data.npMigrationCodeDati !== null) {
+    if (data.tipoLinea != null) {
+
+        if (data.npMigrationCodeVoce !== null) {
+            actions.push({
+                "type": "select",
+                "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
+                "value": "Telefono e FAX",
+                "description": "Selezione Utilizzo Linea: Telefono e FAX"
+            });
+        }
+
         if (data.tipoLinea === 2) {
             actions.push({
                 "type": "select",
@@ -817,6 +902,7 @@ async function generateInstructions(data) {
             });
         }
     }
+
     actions.push({
         "type": "fill",
         "locator": "input[name='section3_codiceIban']",
@@ -826,16 +912,18 @@ async function generateInstructions(data) {
 
     // CONSENSI ---------------------------------------------------------------
 
+    const consenso = data.backOffice.consensoMarketingProfilazione === 1 ? 'true' : 'false';
+
     actions.push({
         "type": "radio",
-        "locator": "input[name='section4_consensoAnalisiFW2'][value='true']",
-        "description": "Consenso Analisi FW2: SI"
+        "locator": `input[name='section4_consensoAnalisiFW2'][value='${consenso}']`,
+        "description": `Consenso Analisi FW2: ${consenso}`
     });
 
     actions.push({
         "type": "radio",
-        "locator": "input[name='section4_consensoMarketingProdottiFWPartner'][value='true']",
-        "description": "Consenso Marketing Partner: SI"
+        "locator": `input[name='section4_consensoMarketingProdottiFWPartner'][value='${consenso}']`,
+        "description": `Consenso Marketing Partner: ${consenso}`
     });
 
     actions.push({
@@ -846,6 +934,13 @@ async function generateInstructions(data) {
     });
 
     // ------------------------------------------------------------------------
+
+    // Added 15 - minute wait
+    // actions.push({
+    //     "type": "wait",
+    //     "ms": 900000,
+    //     "description": "Attesa di 15 minuti dopo il carrello"
+    // });
 
     actions.push({
         "type": "click",
@@ -865,7 +960,7 @@ async function generateInstructions(data) {
         actions.push({
             "type": "fill",
             "locator": "input#EnvelopeId",
-            "value": data.additional_parameters['Envelop ID'],
+            "value": data.envelopeId,
             "description": "Inserimento Envelope ID"
         });
 
@@ -880,36 +975,72 @@ async function generateInstructions(data) {
             "locator": "button:has-text('Procedi')[ng-click*='showTMTDocumentSection']",
             "description": "Click su Procedi (Sezione Documentazione)"
         });
+
+        actions.push({
+            "type": "upload",
+            "locator": "#TMTPdaRequiredDocument",
+            "value": `files/currents/${data.id}_id_card*.pdf`,
+            "description": "Caricamento Carta di Identità"
+        });
+
+        actions.push({
+            "type": "upload",
+            "locator": "#TMTPdaFirstDocument",
+            "value": `files/currents/${data.id}_visura*.pdf`,
+            "description": "Caricamento Visura Camerale"
+        });
+
+        actions.push({
+            "type": "click",
+            "locator": "button:has-text('Conferma Ordine')",
+            "description": "Click su Conferma Ordine"
+        });
     }
 
-    // CARICA FILE ------------------------------------------------------------
+    else {
+        actions.push({
+            "type": "click",
+            "locator": "#buttonShowConfermaEStampa",
+            "description": "Click su Conferma e Stampa"
+        });
 
-    actions.push({
-        "type": "upload",
-        "locator": "#TMTPdaRequiredDocument",
-        "value": `files/currents/${data.id}_id_card*.pdf`,
-        "description": "Caricamento Carta di Identità"
-    });
+        actions.push({
+            "type": "click",
+            "locator": "#mainStampa",
+            "newTab": true,
+            "autoCloseNewTab": true,
+            "description": "Click su mainStampa"
+        });
 
-    actions.push({
-        "type": "upload",
-        "locator": "#TMTPdaFirstDocument",
-        "value": `files/currents/${data.id}_visura*.pdf`,
-        "description": "Caricamento Visura Camerale"
-    });
+        actions.push({
+            "type": "upload",
+            "locator": "#printedPdaRequiredDocument",
+            "value": `files/currents/${data.id}_pda*.pdf`,
+            "description": "Caricamento Documentazione PDA"
+        });
 
-    // actions.push({
-    //     "type": "upload",
-    //     "locator": "#pdaOtherDocument",
-    //     "value": `files/currents/${data.id}_pda*.pdf`,
-    //     "description": "Caricamento Documentazione PDA"
-    // });
+        actions.push({
+            "type": "upload",
+            "locator": "#printedPdaFirstDocument",
+            "value": `files/currents/${data.id}_id_card*.pdf`,
+            "description": "Caricamento Carta di Identità"
+        });
 
-    actions.push({
-        "type": "click",
-        "locator": "button:has-text('Conferma Ordine')",
-        "description": "Click su Conferma Ordine"
-    });
+        actions.push({
+            "type": "upload",
+            "locator": "#printedPdaSecondDocument",
+            "value": `files/currents/${data.id}_visura*.pdf`,
+            "description": "Caricamento Visura Camerale"
+        });
+
+        actions.push({
+            "type": "click",
+            "locator": "button#secondSectionCompleteButton",
+            "description": "Click su Conferma Ordine"
+        });
+    }
+
+    // DOWNLOAD RAPPORTO ------------------------------------------------------------
 
     actions.push({
         "type": "download",
@@ -918,12 +1049,12 @@ async function generateInstructions(data) {
     });
 
 
-    // Added 15-minute wait
-    actions.push({
-        "type": "wait",
-        "ms": 900000,
-        "description": "Attesa di 15 minuti dopo il carrello"
-    });
+    // // Added 15 - minute wait
+    // actions.push({
+    //     "type": "wait",
+    //     "ms": 900000,
+    //     "description": "Attesa di 15 minuti dopo il carrello"
+    // });
 
 
 

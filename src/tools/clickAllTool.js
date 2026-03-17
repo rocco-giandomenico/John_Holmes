@@ -17,23 +17,28 @@ async function clickAllElements(page, locator, timeout = 15000, isBlocking = tru
         await withRetry(async () => {
             const elements = page.locator(locator);
 
-            // Attendiamo che almeno uno compaia
-            await elements.first().waitFor({ state: 'visible', timeout });
-
             const allElements = await elements.all();
+            
+            if (allElements.length === 0) {
+                console.log(`Nessun elemento trovato per il selettore: ${locator}. Salto direttamente.`);
+                return;
+            }
+
             console.log(`Trovati ${allElements.length} elementi per il selettore: ${locator}`);
 
             for (const el of allElements) {
-                if (await el.isVisible()) {
+                if (await el.isVisible() && await el.isEnabled()) {
                     await el.click();
                     clickedCount++;
-                    console.log(`Click eseguito su elemento visibile (${clickedCount})`);
+                    console.log(`Click eseguito su elemento visibile e abilitato (${clickedCount})`);
 
                     // Attesa overlay post-singolo click (per gestire loader tra un click e l'altro)
                     await waitForOverlay(page, 60000, true);
 
                     // Piccola pausa di sicurezza per stabilità DOM
                     await page.waitForTimeout(500);
+                } else {
+                    console.log(`Elemento trovato per ${locator} ma ignorato perché non visibile o disabilitato.`);
                 }
             }
         }, configLoader.get('TOOLS_RETRY', 2), 1000);

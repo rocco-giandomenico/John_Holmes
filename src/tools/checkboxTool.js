@@ -11,7 +11,8 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 15000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function setCheckbox(page, locator, shouldBeChecked = true, timeout = 15000) {
+async function setCheckbox(page, locator, shouldBeChecked = true, timeout = 15000, retries = null) {
+    const finalRetries = retries !== null ? retries : configLoader.get('TOOLS_RETRY', 2);
     try {
         await withRetry(async () => {
             const checkbox = page.locator(locator);
@@ -34,7 +35,7 @@ async function setCheckbox(page, locator, shouldBeChecked = true, timeout = 1500
 
             // Attesa overlay post-azione
             await waitForOverlay(page, 60000, true);
-        }, configLoader.get('TOOLS_RETRY', 2), 1000);
+        }, finalRetries, 1000);
 
         return { success: true };
     } catch (error) {

@@ -11,7 +11,8 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<boolean>} - True se l'operazione è riuscita.
  */
-async function selectOption(page, locator, value, timeout = 15000, isBlocking = true) {
+async function selectOption(page, locator, value, timeout = 15000, isBlocking = true, retries = null) {
+    const finalRetries = retries !== null ? retries : configLoader.get('TOOLS_RETRY', 2);
     try {
         await withRetry(async () => {
             const select = page.locator(locator);
@@ -25,7 +26,7 @@ async function selectOption(page, locator, value, timeout = 15000, isBlocking = 
 
             // ATTESA OVERLAY + MODAL post-selezione
             await waitForOverlay(page, 60000, true);
-        }, configLoader.get('TOOLS_RETRY', 2), 1000);
+        }, finalRetries, 1000);
 
         return { success: true };
     } catch (error) {

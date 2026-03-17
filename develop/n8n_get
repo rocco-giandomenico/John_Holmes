@@ -1,0 +1,136 @@
+// === 1. OTTIENI IL TOKEN ===
+const authUrl = 'https://account.kiop.it/realms/maxel/protocol/openid-connect/token';
+
+function encodeFormData(data) {
+    return Object.keys(data)
+        .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(data[key]))
+        .join('&');
+}
+
+const authPayload = encodeFormData({
+    grant_type: 'password',
+    client_id: 'kiop-pda-dev',
+    client_secret: 'd52f874a-4f99-4a16-ba94-c1fece71079a',
+    username: 'superad@ivert.it',
+    password: 'Super!AdS0p3r4d0!',
+    scope: 'openid offline_access'
+});
+
+let accessToken = "";
+
+try {
+    const authResponse = await this.helpers.httpRequest({
+        url: authUrl,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: authPayload
+    });
+
+    accessToken = authResponse.access_token;
+    console.log("[AUTH]: Token ottenuto con successo.");
+
+} catch (error) {
+    console.error("[AUTH ERROR]: Impossibile ottenere il token:", error.message);
+    throw new Error(`Errore di autenticazione: ${error.message}`);
+}
+
+// === 2. ESEGUI LA CHIAMATA PRINCIPALE ===
+
+const groupId = '13714';
+const typeId = '2';
+const statusIn = '4';
+const pdaTypeIn = '0';
+const microstatus = 'In caricamento';
+
+const baseUrl = 'https://pda.kiop.it/solida/api/pda/automa/list';
+const pageSize = 100;
+
+let allRecords = [];
+let page = 0;
+let totalCount = 0;
+let hasMorePages = true;
+
+// Definiamo una funzione helper per il retry
+async function fetchWithRetry(url, options, maxRetries = 3, delayMs = 2000) {
+    for (let currentAttempt = 0; currentAttempt <= maxRetries; currentAttempt++) {
+        try {
+            // Nota in n8n devi usare await this.helpers.request per Node.js puro, 
+            // ma il nodo Code ci offre this.helpers.httpRequest
+            const response = await this.helpers.httpRequest({
+                url: url,
+                method: 'GET',
+                headers: options.headers,
+                returnFullResponse: true, // Necessario per leggere gli header (x-total-count)
+            });
+            return response;
+        } catch (error) {
+            if (currentAttempt === maxRetries) {
+                throw error;
+            }
+            // Aspetta prima del retry
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+}
+
+try {
+    do {
+        // Costruzione URL con query params
+        const url = `${baseUrl}?size=${pageSize}&page=${page}&groupId.in=${groupId}&typeId.in=${typeId}&status.in=${statusIn}&pdaType.in=${pdaTypeIn}&microstatus.equals=${encodeURIComponent(microstatus)}`;
+
+        const options = {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json'
+            }
+        };
+
+        // Chiamata API
+        const response = await fetchWithRetry.call(this, url, options, 3, 2000);
+
+        // Estrai il totale al primo giro
+        // In n8n 'response.headers' è dove troverai l'intestazione x-total-count.
+        if (page === 0) {
+            totalCount = parseInt(response.headers['x-total-count'] || '0', 10);
+            console.log(`[API]: Rilevato totale di ${totalCount} record da scaricare.`);
+        }
+
+        const pageRecords = Array.isArray(response.body) ? response.body : [];
+        allRecords = allRecords.concat(pageRecords);
+
+        console.log(`[API]: Pagina ${page} scaricata (${pageRecords.length} record). Totale parziale: ${allRecords.length}/${totalCount}`);
+
+        page++;
+
+        // Condizione di uscita: abbiamo raggiunto il totale, o la pagina era vuota (fallback), limitato a 50 iterazioni
+        hasMorePages = (allRecords.length < totalCount) && (page < 50) && (pageRecords.length > 0);
+
+    } while (hasMorePages);
+
+    console.log(`[API SUCCESS]: Recuperati complessivamente ${allRecords.length} record da Kiop.`);
+
+    // ==========================================
+    // TRASFORMAZIONE FINALE NELL'OGGETTO RICHIESTO
+    // Da: [{id: 1, pdaType: 'x', ...}, {id: 2, ...}]
+    // A: [{json: {id: 1}}, {json: {id: 2}}] (Formato standard di n8n)
+    // ==========================================
+    
+    const finalItems = allRecords.map(record => {
+        return {
+            json: {
+                id: record.id
+            }
+        };
+    });
+
+    // n8n si aspetta sempre un array di oggetti con la chiave "json"
+    return finalItems;
+
+} catch (error) {
+    console.error(`[API ERROR]: Errore durante il recupero delle PDA:`, error.message);
+    
+    // In caso di errore fallisce il nodo elegantemente per permettere la gestione degli errori
+    throw new Error(`Errore durante il recupero delle PDA: ${error.message}`);
+}

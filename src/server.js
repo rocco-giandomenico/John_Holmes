@@ -373,11 +373,11 @@ app.post('/fetch-documents', async (req, res) => {
 
             // Determine filename based on type (consistent with downloadKiopFiles)
             let fileName = fileItem.name;
-            if (fileItem.type === 'Visura') {
+            if (fileItem.type === 'Visura' || fileItem.type === 'visura') {
                 fileName = `${pdaId}_visura${suffix}.pdf`;
-            } else if (fileItem.type === 'Documento di Identità') {
+            } else if (fileItem.type === 'Documento di Identità' || fileItem.type === 'documentoIdentita') {
                 fileName = `${pdaId}_id_card${suffix}.pdf`;
-            } else if (fileItem.type === 'Altro') {
+            } else if (fileItem.type === 'Altro' || fileItem.type === 'pdaCartacea') {
                 fileName = `${pdaId}_pda${suffix}.pdf`;
             }
 

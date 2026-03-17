@@ -74,11 +74,11 @@ try {
             // Filtriamo per tipo e visibilità (deve essere 1)
             const visure = commonFileEntries.filter(f => f.type === 'Visura' && f.visibility === 1);
             const documentiIdentita = commonFileEntries.filter(f => f.type === 'Documento di Identità' && f.visibility === 1);
-            const altri = commonFileEntries.filter(f => f.type === 'Altro' && f.visibility === 1);
+            const altroDocs = commonFileEntries.filter(f => f.type === 'Altro' && f.visibility === 1);
 
             // Validazione: Deve essercene esattamente uno per tipo (Altro obbligatorio solo se firma digitale NO)
             const isFirmaDigitaleNo = pdaData.firmaDigitale === 0;
-            const isAltroValid = isFirmaDigitaleNo ? (altri.length === 1) : (altri.length <= 1);
+            const isAltroValid = isFirmaDigitaleNo ? (altroDocs.length === 1) : (altroDocs.length <= 1);
 
             if (visure.length !== 1 || documentiIdentita.length !== 1 || !isAltroValid) {
                 let errorMsg = [];
@@ -88,16 +88,16 @@ try {
                 if (documentiIdentita.length === 0) errorMsg.push("Documento di Identità mancante");
                 if (documentiIdentita.length > 1) errorMsg.push(`Molteplicità di Documenti di Identità trovati (${documentiIdentita.length})`);
 
-                if (isFirmaDigitaleNo && altri.length === 0) errorMsg.push("Documento 'Altro' mancante");
-                if (altri.length > 1) errorMsg.push(`Molteplicità di documenti 'Altro' trovati (${altri.length})`);
+                if (isFirmaDigitaleNo && altroDocs.length === 0) errorMsg.push("Documento 'Altro' mancante");
+                if (altroDocs.length > 1) errorMsg.push(`Molteplicità di documenti 'Altro' trovati (${altroDocs.length})`);
 
                 throw new Error(`Validazione documenti fallita: ${errorMsg.join(" - ")}`);
             }
 
             // Se la validazione passa, teniamo solo gli elementi necessari nel JSON finale
             pdaData.commonFileEntries = [visure[0], documentiIdentita[0]];
-            if (altri.length === 1) {
-                pdaData.commonFileEntries.push(altri[0]);
+            if (altroDocs.length === 1) {
+                pdaData.commonFileEntries.push(altroDocs[0]);
             }
 
             results.push({

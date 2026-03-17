@@ -14,7 +14,8 @@ const fs = require('fs');
  * @param {number} timeout - Tempo massimo di attesa (default 15000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function uploadFile(page, locator, filePath, pdaId, timeout = 15000) {
+async function uploadFile(page, locator, filePath, pdaId, timeout = 15000, retries = null) {
+    const finalRetries = retries !== null ? retries : configLoader.get('TOOLS_RETRY', 2);
     try {
         await withRetry(async () => {
             const input = page.locator(locator);
@@ -82,7 +83,7 @@ async function uploadFile(page, locator, filePath, pdaId, timeout = 15000) {
                     // Non blocchiamo il successo dell'upload se lo spostamento fallisce (es. file occupato)
                 }
             }
-        }, configLoader.get('TOOLS_RETRY', 2), 1000);
+        }, finalRetries, 1000);
 
         return { success: true };
     } catch (error) {

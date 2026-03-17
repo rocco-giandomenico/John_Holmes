@@ -10,7 +10,8 @@ const configLoader = require('../utils/configLoader');
  * @param {number} timeout - Tempo massimo di attesa (default 5000ms).
  * @returns {Promise<{success: boolean, error?: string}>} - Esito dell'operazione.
  */
-async function clickElement(page, locator, timeout = 15000) {
+async function clickElement(page, locator, timeout = 15000, retries = null) {
+    const finalRetries = retries !== null ? retries : configLoader.get('TOOLS_RETRY', 2);
     try {
         await withRetry(async () => {
             const element = page.locator(locator);
@@ -20,7 +21,7 @@ async function clickElement(page, locator, timeout = 15000) {
 
             // Attesa overlay post-click (con controllo popup)
             await waitForOverlay(page, 60000, true);
-        }, configLoader.get('TOOLS_RETRY', 2), 1000);
+        }, finalRetries, 1000);
 
         return { success: true };
     } catch (error) {

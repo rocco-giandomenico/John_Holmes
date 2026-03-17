@@ -237,7 +237,11 @@ class BrowserManager {
         }
 
         return this.startJob('execute-job', async (id, updateStatus) => {
-            return await executeJobProcedure(this.page, data, updateStatus);
+            return await executeJobProcedure(this.page, data, updateStatus, (newPage) => {
+                console.log(`[BROWSER] Cambio pagina rilevato. Nuova pagina attiva.`);
+                this.page = newPage;
+                this.context = newPage.context();
+            });
         }, pdaId, data.name, force);
     }
 

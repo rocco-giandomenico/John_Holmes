@@ -10,8 +10,8 @@ const configLoader = require('../utils/configLoader');
  * @param {string} locator - Il selettore dell'elemento toggle (es. 'a.accordion-toggle:has-text("...")').
  * @param {'open' | 'closed'} targetState - Lo stato finale desiderato. Default 'open'.
  */
-async function setAccordionState(page, locator, targetState = 'open') {
-    const retries = configLoader.get('TOOLS_RETRY', 2);
+async function setAccordionState(page, locator, targetState = 'open', retries = null) {
+    const finalRetries = retries !== null ? retries : configLoader.get('TOOLS_RETRY', 2);
     await withRetry(async () => {
         const section = page.locator(locator);
 

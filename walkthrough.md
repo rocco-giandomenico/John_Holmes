@@ -1,7 +1,7 @@
 # Walkthrough - Login & Concurrent Session Fix
 
 ## Overview
-This walkthrough documents the changes made to the `John_Holmes` project to improve login reliability and specifically address concurrent session handling.
+This walkthrough documents the changes made to the `Fastweb Automation` project to improve login reliability and specifically address concurrent session handling.
 
 ## Changes
 

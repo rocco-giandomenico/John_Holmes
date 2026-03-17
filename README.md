@@ -1,4 +1,4 @@
-# John Holmes - Fastweb Automation Project
+# Fastweb Automation Project
 
 Questo progetto è un sistema di automazione avanzato basato su **Playwright** e **Node.js** per interagire con il portale Fastweb/Salesforce. Funge da server API che espone funzionalità di navigazione, login e compilazione automatica di pratiche (PDA).
 

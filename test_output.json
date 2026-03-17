@@ -1,0 +1,435 @@
+[
+    {
+        "pdaId": 497789,
+        "name": "Job per TRISCARI PAZZITTO SILVANA",
+        "actions": [
+            {
+                "type": "procedure",
+                "name": "handleExistingOrder",
+                "description": "Gestione Ordine Esistente"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name=\"section1_tipologiaOfferta\"][value=\"FISSO\"]",
+                "description": "Selezione Tipologia offerta"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_nomeReferente\"]",
+                "value": "SILVANA",
+                "description": "Nome Rappresentante"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_cognomeReferente\"]",
+                "value": "TRISCARI PAZZITTO",
+                "description": "Cognome Rappresentante"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name=\"section1_sessoReferente\"][value=\"F\"]",
+                "description": "Selezione Sesso Rappresentante"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_dataDiNascitaReferente\"]",
+                "value": "15/10/1970",
+                "description": "Data di Nascita"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name=\"section1_natoAllEsteroReferente\"][value=\"false\"]",
+                "description": "Selezione Nato all'estero"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name=\"section1_statoDiNascitaReferente\"]",
+                "value": "ITALIA",
+                "description": "Inserimento Stato di Nascita Rappresentante Legale"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name=\"section1_comuneDiNascitaReferente\"]",
+                "value": "Bronte",
+                "description": "Inserimento Comune di Nascita Rappresentante Legale"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_codiceFiscaleReferente\"]",
+                "value": "TRSSVN70R55B202I",
+                "description": "Codice Fiscale"
+            },
+            {
+                "type": "click",
+                "locator": "button.btn.btn-primary[ng-click*=\"verificaCodiceFiscale('section1'\"]",
+                "description": "Verifica Codice Fiscale"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_numeroMobileDiRiferimento\"]",
+                "value": "3899031754",
+                "description": "Inserimento Numerazione Mobile Rappresentante Legale"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_email\"]",
+                "value": "TRISCARISILVANA7@GMAIL.COM",
+                "description": "Email"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section1_emailConferma\"]",
+                "value": "TRISCARISILVANA7@GMAIL.COM",
+                "description": "Conferma Email"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Indirizzo di Copertura e Residenza')",
+                "description": "Apertura Indirizzo di Copertura e Residenza"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Dati di Attivazione')",
+                "description": "Apertura Dati di Attivazione"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_cittaDiAttivazione']",
+                "value": "BRONTE",
+                "description": "Inserimento Città di Attivazione"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_indirizzoDiAttivazione']",
+                "value": "VIA OTRANTO",
+                "description": "Inserimento Indirizzo di Attivazione"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_civicoDiAttivazione']",
+                "value": "11",
+                "selectionValue": "11",
+                "description": "Inserimento Civico di Attivazione"
+            },
+            {
+                "type": "extract",
+                "locator": "input[name=\"section2_prefissoNumeroDiTelefonoReteFissa\"]",
+                "variable": "prefisso_portare",
+                "mode": "value",
+                "description": "Estrazione Prefisso Numero di Telefono da Portare"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name='section2_hasNumeroReteFissa'][value='true']",
+                "description": "Selezione Portabilità Numerazione"
+            },
+            {
+                "type": "fill",
+                "locator": ".panel:has-text('Dati di Attivazione') input[name='section_codiceDiMigrazioneFonia'] >> nth=0",
+                "value": "10O0957176141E",
+                "description": "Inserimento Migration Code Voce"
+            },
+            {
+                "type": "transform",
+                "input": "0957176141",
+                "regex": "^{{prefisso_portare}}(.+)",
+                "variables": [
+                    "numero_senza_prefisso"
+                ],
+                "description": "Rimozione prefisso dal numero fisso"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name=\"section2_numeroDiTelefonoReteFissa\"]",
+                "value": "{{numero_senza_prefisso}}",
+                "description": "Inserimento Numero di Telefono da Portare (senza prefisso)"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name='section2_hasServizioAdsl'][value='true']",
+                "description": "Selezione Portabilità Dati"
+            },
+            {
+                "type": "fill",
+                "locator": ".panel:has-text('Dati di Attivazione') input[name='section_codiceDiMigrazioneDati'] >> nth=0",
+                "value": "10O0957176141E",
+                "description": "Inserimento Migration Code Dati"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name='section2_lineaAggiuntiva'][value='false']",
+                "description": "Selezione Linea Aggiuntiva"
+            },
+            {
+                "type": "click",
+                "locator": "button.btn.btn-primary[ng-click*=\"verificaCopertura()\"]",
+                "description": "Verifica Copertura"
+            },
+            {
+                "type": "click",
+                "locator": "button.btn.btn-primary[ng-click=\"modal_instance.close()\"]:visible >> nth=0",
+                "description": "Chiusura modale esito copertura"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Dati di Residenza')",
+                "description": "Apertura Dati di Residenza"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_cittaDiSedeLegale']",
+                "value": "BRONTE",
+                "description": "Inserimento Città di Sede Legale"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_indirizzoDiSedeLegale']",
+                "value": "VIA OTRANTO",
+                "description": "Inserimento Indirizzo di Sede Legale"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section2_civicoDiSedeLegale']",
+                "value": "11",
+                "selectionValue": "11",
+                "description": "Inserimento Civico di Sede Legale"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name='section2_capDiSedeLegale']",
+                "value": "95034",
+                "description": "Inserimento CAP di Sede Legale"
+            },
+            {
+                "type": "click",
+                "locator": "button.btn-primary:has-text('Verifica Dati Fiscali')",
+                "description": "Verifica Dati Fiscali"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Documenti e Selezione Consensi')",
+                "description": "Apertura Documenti e Selezione Consensi"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Documenti'):not(:has-text('Selezione'))",
+                "description": "Apertura accordion Documenti"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section4_nazionalitaDocumento']",
+                "value": "ITALIA",
+                "description": "Nazionalità Documento"
+            },
+            {
+                "type": "select",
+                "locator": "select[name='section4_tipoDocumento']",
+                "value": "CARTA DI IDENTITA",
+                "description": "Tipo Documento"
+            },
+            {
+                "type": "select",
+                "locator": "select[name='section4_cittadinanza']",
+                "value": "UE",
+                "description": "Cittadinanza"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name='section4_numeroDocumento']",
+                "value": "AV7421597",
+                "description": "Numero Documento"
+            },
+            {
+                "type": "autocomplete",
+                "locator": "input[name='section4_localitaDiRilascioDocumento']",
+                "value": "BRONTE",
+                "description": "Località di Rilascio Documento"
+            },
+            {
+                "type": "select",
+                "locator": "select[name='section4_enteEmittente']",
+                "value": "COMUNE",
+                "description": "Ente emittente"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name='section4_dataDiRilascioDocumento']",
+                "value": "15/02/2016",
+                "description": "Data di Rilascio Documento"
+            },
+            {
+                "type": "click",
+                "locator": "button.btn-primary:has-text('Verifica Documento')",
+                "description": "Verifica Documento"
+            },
+            {
+                "type": "open_accordion",
+                "locator": ".panel-heading:has-text('Metodo di Pagamento') a.accordion-toggle",
+                "description": "Apertura Metodo di Pagamento"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Dati di Pagamento')",
+                "description": "Apertura Dati di Pagamento"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name=\"section3_metodoDiPagamento\"][value=\"DIRECT DEBIT\"]",
+                "description": "Selezione Metodo: DIRECT DEBIT"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "#j_id0\\:j_id6\\:j_id171 a.accordion-toggle:has-text('Completamento Dati')",
+                "description": "Apertura Completamento Dati"
+            },
+            {
+                "type": "click",
+                "locator": "button[ng-click='vaiAlCarrello()']",
+                "description": "Click su Vai al Carrello"
+            },
+            {
+                "type": "extract",
+                "locator": "tr:has(.externalInputImg) .descriptionColumn span",
+                "variable": "prodotti_carrello",
+                "mode": "list",
+                "timeout": 30000,
+                "description": "Estrazione nomi prodotti nel carrello"
+            },
+            {
+                "type": "procedure",
+                "name": "handlePopupCoupon",
+                "locator": "tr:has(span:text-is('Fastweb Business')) .externalInputImg:visible",
+                "description": "Click e gestione Popup"
+            },
+            {
+                "type": "click",
+                "locator": "#saveButton",
+                "description": "Clic su Procedi"
+            },
+            {
+                "type": "click",
+                "locator": "#saveButton",
+                "description": "Clic sul secondo Procedi"
+            },
+            {
+                "type": "open_accordion",
+                "locator": "a.accordion-toggle:has-text('Dati di Residenza')",
+                "description": "Apertura Dati di Residenza"
+            },
+            {
+                "type": "click",
+                "locator": "#phase1_tipologiaFissoMobile button[ng-click='copiaAttivazioneToIntestatario()']",
+                "description": "Copia Indirizzo di Attivazione"
+            },
+            {
+                "type": "click",
+                "locator": "#phase1_tipologiaFissoMobile button[ng-click='copiaDatiClienteToIntestatario()']",
+                "description": "Copia Dati Cliente"
+            },
+            {
+                "type": "click",
+                "locator": "#datiIndirizzoSpedizione button[ng-click='copiaToSpedizione()']",
+                "description": "Copia Dati Spedizione"
+            },
+            {
+                "type": "click_all",
+                "locator": "button:has-text('Verifica Documento'):visible",
+                "description": "Verifica Documento",
+                "isBlocking": false
+            },
+            {
+                "type": "click_all",
+                "locator": "button:has-text('Verifica Dati Fiscali'):visible",
+                "description": "Verifica Dati Fiscali"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name='section2_piano']",
+                "value": "T",
+                "description": "Inserimento Piano"
+            },
+            {
+                "type": "select",
+                "locator": "select[name='section2_utilizzoLinea'][ng-model*='section2DataWrapper.utilizzoLinea']:not([ng-model*='utilizzoLinea2'])",
+                "value": "Telefono e FAX",
+                "description": "Selezione Utilizzo Linea: Telefono e FAX"
+            },
+            {
+                "type": "select",
+                "locator": "select[name='section2_tipoLinea'][ng-model*='section2DataWrapper.tipoLinea']:not([ng-model*='tipoLinea2'])",
+                "value": "Tradizionale",
+                "description": "Selezione Tipo Linea: Tradizionale"
+            },
+            {
+                "type": "fill",
+                "locator": "input[name='section3_codiceIban']",
+                "value": "IT49R0200883890000300038268",
+                "description": "Inserimento Codice IBAN"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name='section4_consensoAnalisiFW2'][value='true']",
+                "description": "Consenso Analisi FW2: true"
+            },
+            {
+                "type": "radio",
+                "locator": "input[name='section4_consensoMarketingProdottiFWPartner'][value='true']",
+                "description": "Consenso Marketing Partner: true"
+            },
+            {
+                "type": "checkbox",
+                "locator": "input[name='section4_consensoPubblicazioneElencoTelefonico']",
+                "value": true,
+                "description": "Deselezione Consenso Pubblicazione Elenco Telefonico"
+            },
+            {
+                "type": "click",
+                "locator": "button:has-text('Genera Riepilogo Ordine')",
+                "description": "Genera Riepilogo Ordine (attende che sia abilitato)"
+            },
+            {
+                "type": "click",
+                "locator": "#firmaElettronicaTMT",
+                "description": "Click su Firma Elettronica BRICKS"
+            },
+            {
+                "type": "fill",
+                "locator": "input#EnvelopeId",
+                "value": "70414992-95f4-4274-8aab-32f438f1416a",
+                "description": "Inserimento Envelope ID"
+            },
+            {
+                "type": "click",
+                "locator": "#syncOrderSignatureTMT",
+                "description": "Verifica ENVELOPE ID"
+            },
+            {
+                "type": "click",
+                "locator": "button:has-text('Procedi')[ng-click*='showTMTDocumentSection']",
+                "description": "Click su Procedi (Sezione Documentazione)"
+            },
+            {
+                "type": "upload",
+                "locator": "#TMTPdaRequiredDocument",
+                "value": "files/currents/497789_id_card*.pdf",
+                "description": "Caricamento Carta di Identità"
+            },
+            {
+                "type": "upload",
+                "locator": "#TMTPdaFirstDocument",
+                "value": "files/currents/497789_visura*.pdf",
+                "description": "Caricamento Visura Camerale"
+            },
+            {
+                "type": "click",
+                "locator": "button:has-text('Conferma Ordine')",
+                "description": "Click su Conferma Ordine"
+            },
+            {
+                "type": "download",
+                "locator": "#linkPDF",
+                "description": "Download PDA"
+            }
+        ]
+    }
+]

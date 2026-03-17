@@ -31,6 +31,8 @@ async function requestWithRetry(config, retries = MAX_RETRIES) {
 
 // --- LOGICA PRINCIPALE (Equivalente nodi auth1 e retrive PDA1) ---
 
+const jobTimestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+
 const authUrl = 'https://account.kiop.it/realms/maxel/protocol/openid-connect/token';
 const authPayload = encodeFormData({
     grant_type: 'password',
@@ -61,7 +63,7 @@ try {
         try {
             // 3. Esecuzione logica nodo "retrive PDA1"
             const pdaResponse = await requestWithRetry({
-                url: `https://pda.kiop.it/solida/api/pda/${idPda}`,
+                url: `https://pda.kiop.it/solida/api/automa/pda/${idPda}`,
                 method: 'GET',
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
@@ -69,27 +71,39 @@ try {
             const pdaData = pdaResponse.data;
             let commonFileEntries = pdaData.commonFileEntries || [];
 
-            // Filtriamo per tipo
-            const visure = commonFileEntries.filter(f => f.type === 'Visura');
-            const documentiIdentita = commonFileEntries.filter(f => f.type === 'Documento di Identità');
+            // Filtriamo per tipo e visibilità (deve essere 1)
+            const visure = commonFileEntries.filter(f => f.type === 'visura' && f.visibility === 1);
+            const documentiIdentita = commonFileEntries.filter(f => f.type === 'documentoIdentita' && f.visibility === 1);
+            const pdaCartacea = commonFileEntries.filter(f => f.type === 'pdaCartacea' && f.visibility === 1);
 
-            // Validazione: Deve essercene esattamente uno per tipo
-            if (visure.length !== 1 || documentiIdentita.length !== 1) {
+            // Validazione: Deve essercene esattamente uno per tipo (pdaCartacea obbligatorio solo se firma digitale NO)
+            const isFirmaDigitaleNo = pdaData.firmaDigitale === 0;
+            const isPdaCartaceaValid = isFirmaDigitaleNo ? (pdaCartacea.length === 1) : (pdaCartacea.length <= 1);
+
+            if (visure.length !== 1 || documentiIdentita.length !== 1 || !isPdaCartaceaValid) {
                 let errorMsg = [];
                 if (visure.length === 0) errorMsg.push("Visura mancante");
                 if (visure.length > 1) errorMsg.push(`Multiple Visure trovate (${visure.length})`);
-                if (documentiIdentita.length === 0) errorMsg.push("Documento di Identità mancante");
-                if (documentiIdentita.length > 1) errorMsg.push(`Molteplicità di Documenti di Identità trovati (${documentiIdentita.length})`);
+
+                if (documentiIdentita.length === 0) errorMsg.push("documentoIdentita mancante");
+                if (documentiIdentita.length > 1) errorMsg.push(`Molteplicità di documenti documentoIdentita trovati (${documentiIdentita.length})`);
+
+                if (isFirmaDigitaleNo && pdaCartacea.length === 0) errorMsg.push("documento pdaCartacea mancante");
+                if (pdaCartacea.length > 1) errorMsg.push(`Molteplicità di documenti pdaCartacea trovati (${pdaCartacea.length})`);
 
                 throw new Error(`Validazione documenti fallita: ${errorMsg.join(" - ")}`);
             }
 
-            // Se la validazione passa, teniamo solo questi due elementi nel JSON finale
+            // Se la validazione passa, teniamo solo gli elementi necessari nel JSON finale
             pdaData.commonFileEntries = [visure[0], documentiIdentita[0]];
+            if (pdaCartacea.length === 1) {
+                pdaData.commonFileEntries.push(pdaCartacea[0]);
+            }
 
             results.push({
                 json: {
                     ...pdaData,
+                    jobTimestamp: jobTimestamp,
                     additional_parameters: item.json
                 }
             });

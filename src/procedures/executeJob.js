@@ -9,6 +9,7 @@ const { setCheckbox } = require('../tools/checkboxTool');
 const { uploadFile } = require('../tools/uploadFileTool');
 const { extractValue } = require('../tools/extractValueTool');
 const { downloadFile } = require('../tools/downloadFileTool');
+const configLoader = require('../utils/configLoader');
 
 // Import predefined procedures
 const initPDAProcedure = require('./initPDA');
@@ -53,7 +54,7 @@ function resolveVariables(obj, variables) {
  * @param {Object} data - Oggetto contenente l'array di azioni { actions: [...] }.
  * @param {Function} updateStatus - Callback per il progresso (progress, lastAction).
  */
-async function executeJob(page, data, updateStatus) {
+async function executeJob(page, data, updateStatus, onPageCreated) {
     const rawActions = data.actions || [];
     if (!Array.isArray(rawActions)) {
         throw new Error('Il campo "actions" deve essere un array.');
@@ -83,7 +84,9 @@ async function executeJob(page, data, updateStatus) {
             }
         }
 
-        console.log(`[Action ${i + 1}/${rawActions.length}] ${action.type}: ${actionDesc}`);
+        const retries = action.isOptional ? 0 : configLoader.get('TOOLS_RETRY', 2);
+
+        console.log(`[Action ${i + 1}/${rawActions.length}] ${action.type}: ${actionDesc} (Retries: ${retries})`);
         await updateStatus(progress, actionDesc);
 
         try {
@@ -145,11 +148,11 @@ async function executeJob(page, data, updateStatus) {
                 case 'close_accordion':
                     const state = action.type === 'open_accordion' ? 'open' : 'close';
                     const selector = action.name || action.value || action.locator;
-                    await setAccordionState(page, selector, state);
+                    await setAccordionState(page, selector, state, retries);
                     break;
                 case 'fill':
                 case 'text':
-                    result = await fillInput(page, action.locator, action.value, action.timeout);
+                    result = await fillInput(page, action.locator, action.value, action.timeout, retries);
                     success = result.success;
                     break;
                 case 'autocomplete':
@@ -157,28 +160,47 @@ async function executeJob(page, data, updateStatus) {
                     success = result.success;
                     break;
                 case 'radio':
-                    result = await checkRadioButton(page, action.locator, action.timeout);
+                    result = await checkRadioButton(page, action.locator, action.timeout, retries);
                     success = result.success;
                     break;
                 case 'select':
-                    result = await selectOption(page, action.locator, action.value, action.timeout, action.isBlocking);
+                    result = await selectOption(page, action.locator, action.value, action.timeout, action.isBlocking, retries);
                     success = result.success;
                     break;
                 case 'click':
                 case 'button':
-                    result = await clickElement(page, action.locator, action.timeout);
-                    success = result.success;
+                    if (action.newTab) {
+                        console.log(`[DEBUG] Attesa nuova scheda (popup) dopo click...`);
+                        const [newPage] = await Promise.all([
+                            page.context().waitForEvent('page'),
+                            clickElement(page, action.locator, action.timeout)
+                        ]);
+
+                        if (action.autoCloseNewTab) {
+                            console.log(`[DEBUG] Nuova scheda rilevata. Chiusura automatica come richiesto.`);
+                            await newPage.close();
+                            // La variabile "page" rimane quella originale, non chiamiamo onPageCreated
+                        } else {
+                            page = newPage;
+                            if (onPageCreated) onPageCreated(newPage);
+                            console.log(`[DEBUG] Nuova scheda rilevata e impostata come attiva.`);
+                        }
+                        success = true;
+                    } else {
+                        result = await clickElement(page, action.locator, action.timeout, retries);
+                        success = result.success;
+                    }
                     break;
                 case 'click_all':
                     result = await clickAllElements(page, action.locator, action.timeout, action.isBlocking);
                     success = result.success;
                     break;
                 case 'checkbox':
-                    result = await setCheckbox(page, action.locator, action.value !== false, action.timeout);
+                    result = await setCheckbox(page, action.locator, action.value !== false, action.timeout, retries);
                     success = result.success;
                     break;
                 case 'upload':
-                    result = await uploadFile(page, action.locator, action.value, data.pdaId, action.timeout);
+                    result = await uploadFile(page, action.locator, action.value, data.pdaId, action.timeout, retries);
                     success = result.success;
                     break;
                 case 'download':
@@ -203,12 +225,20 @@ async function executeJob(page, data, updateStatus) {
 
             if (!success) {
                 const toolError = result?.error || result?.message || 'Il tool ha restituito fallimento.';
-                throw new Error(toolError);
+                if (action.isOptional) {
+                    console.warn(`[OPTIONAL SKIP] Azione ${i + 1} fallita ma marcata come opzionale: ${toolError}`);
+                } else {
+                    throw new Error(toolError);
+                }
             }
 
         } catch (err) {
-            console.error(`Errore durante l'azione ${i + 1} (${action.type}): ${err.message}`);
-            throw new Error(`Fallimento azione ${i + 1} (${actionDesc}): ${err.message}`);
+            if (action.isOptional) {
+                console.warn(`[OPTIONAL SKIP] Errore critico durante l'azione opzionale ${i + 1} (${action.type}): ${err.message}`);
+            } else {
+                console.error(`Errore durante l'azione ${i + 1} (${action.type}): ${err.message}`);
+                throw new Error(`Fallimento azione ${i + 1} (${actionDesc}): ${err.message}`);
+            }
         }
 
         // Attesa di default tra un'operazione e l'altra (tranne l'ultima)
